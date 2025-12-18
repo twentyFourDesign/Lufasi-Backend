@@ -36,21 +36,27 @@ async function checkAvailability(req, res, next) {
     const occupiedPodIds = new Set(exclusions.map((e) => e.podId));
     const pods = await db.Pod.findAll({ include: ["images", "priceRules"] });
 
-    // Filter pods by occupancy rules
-    const available = pods.filter(
-      (pod) =>
+    // Format all pods with availability status
+    const formattedPods = pods.map((pod) => {
+      const isOccupied =
         !occupiedPodIds.has(pod.id) &&
         adults <= pod.maxAdults &&
-        children <= pod.maxChildren
-    );
-    res.json({
-      availablePods: available.map((p) => ({
-        id: p.id,
-        podName: p.podName,
-        baseAdultPrice: p.baseAdultPrice,
-        images: p.images,
-      })),
+        children <= pod.maxChildren;
+
+      return {
+        id: pod.id,
+        title: pod.podName,
+        desc: pod.description,
+        price: parseFloat(pod.baseAdultPrice),
+        available: !isOccupied,
+        tags: pod.rules ? pod.rules.split(",").map((tag) => tag.trim()) : [],
+        img: `${req.protocol}://${req.get(
+          "host"
+        )}/uploads/pods/default-pod.png`,
+      };
     });
+
+    res.json(formattedPods);
   } catch (err) {
     next(err);
   }

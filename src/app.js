@@ -1,6 +1,7 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
+const path = require("path");
 
 const authRoutes = require("./routes/auth");
 const podRoutes = require("./routes/pods");
@@ -15,6 +16,9 @@ const app = express();
 
 app.use(cors());
 app.use(bodyParser.json({ limit: "10mb" }));
+
+// Serve static files (images) from uploads directory
+app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
 app.get("/", (req, res) =>
   res.json({ ok: true, service: "Lufasi Lodges Booking API" })

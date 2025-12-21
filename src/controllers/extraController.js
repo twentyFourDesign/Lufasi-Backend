@@ -27,6 +27,50 @@ async function listExtras(req, res, next) {
   }
 }
 
+async function getExtrasByCategory(req, res, next) {
+  try {
+    const extras = await db.Extra.findAll({
+      order: [
+        ["category", "ASC"],
+        ["name", "ASC"],
+      ],
+    });
+
+    // Group extras by category
+    const groupedExtras = extras.reduce((acc, extra) => {
+      const category = extra.category || "uncategorized";
+
+      if (!acc[category]) {
+        acc[category] = {
+          id: category.toLowerCase().replace(/\s+/g, "-"),
+          title: category.charAt(0).toUpperCase() + category.slice(1),
+          subtitle: `Premium ${category} options for your stay`,
+          category: category,
+          options: [],
+        };
+      }
+
+      acc[category].options.push({
+        id: extra.id,
+        label: extra.name,
+        description: extra.description,
+        price: parseFloat(extra.price),
+        imageUrl: extra.imageUrl,
+        category: extra.category,
+      });
+
+      return acc;
+    }, {});
+
+    // Convert to array format expected by frontend
+    const formattedExtras = Object.values(groupedExtras);
+
+    res.json(formattedExtras);
+  } catch (err) {
+    next(err);
+  }
+}
+
 async function updateExtra(req, res, next) {
   try {
     const ex = await db.Extra.findByPk(req.params.id);
@@ -38,4 +82,4 @@ async function updateExtra(req, res, next) {
   }
 }
 
-module.exports = { createExtra, listExtras, updateExtra };
+module.exports = { createExtra, listExtras, updateExtra, getExtrasByCategory };

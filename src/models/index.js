@@ -24,6 +24,7 @@ db.Payment = require("./payment")(sequelize, Sequelize);
 db.BookingLog = require("./bookingLog")(sequelize, Sequelize);
 db.Extra = require("./extra")(sequelize, Sequelize);
 db.BookingExtra = require("./bookingExtra")(sequelize, Sequelize);
+db.MealPlan = require("./mealPlan")(sequelize, Sequelize);
 db.GuestDirectory = require("./guestDirectory")(sequelize, Sequelize);
 
 // Associations

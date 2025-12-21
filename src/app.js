@@ -8,6 +8,7 @@ const podRoutes = require("./routes/pods");
 const availabilityRoutes = require("./routes/availability");
 const bookingRoutes = require("./routes/bookings");
 const extraRoutes = require("./routes/extras");
+const mealPlanRoutes = require("./routes/mealPlans");
 const discountRoutes = require("./routes/discounts");
 const paymentRoutes = require("./routes/payments");
 const adminRoutes = require("./routes/admin");
@@ -30,6 +31,7 @@ app.use("/pods", podRoutes);
 app.use("/availability", availabilityRoutes);
 app.use("/bookings", bookingRoutes);
 app.use("/extras", extraRoutes);
+app.use("/meal-plans", mealPlanRoutes);
 app.use("/discounts", discountRoutes);
 app.use("/payments", paymentRoutes);
 

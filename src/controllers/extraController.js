@@ -52,7 +52,7 @@ async function getExtrasByCategory(req, res, next) {
 
       acc[category].options.push({
         id: extra.id,
-        label: extra.name,
+        name: extra.name,
         description: extra.description,
         price: parseFloat(extra.price),
         imageUrl: extra.imageUrl,

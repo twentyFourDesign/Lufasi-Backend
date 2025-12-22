@@ -357,9 +357,185 @@ async function findBooking(req, res, next) {
   }
 }
 
+// Update existing booking (public/admin)
+async function updateBooking(req, res, next) {
+  try {
+    const { id } = req.params;
+    const {
+      dates,
+      contact,
+      podId,
+      boardType,
+      guests,
+      popUpBeds,
+      extras = [],
+      bookingStatus,
+    } = req.body;
+
+    // Find existing booking
+    const existingBooking = await db.Booking.findByPk(id, {
+      include: [
+        { model: db.GuestDirectory },
+        { model: db.BookingGuest },
+        { model: db.BookingExtra },
+      ],
+    });
+
+    if (!existingBooking) {
+      return res.status(404).json({ error: "Booking not found" });
+    }
+
+    // Update booking data
+    const updateData = {};
+    if (dates?.checkIn) updateData.checkIn = dates.checkIn;
+    if (dates?.checkOut) updateData.checkOut = dates.checkOut;
+    if (podId) updateData.podId = podId;
+    if (boardType) updateData.boardType = boardType;
+    if (popUpBeds !== undefined) updateData.popUpBeds = popUpBeds;
+    if (bookingStatus) updateData.bookingStatus = bookingStatus;
+
+    // Recalculate price if pod, guests, or extras changed
+    if (podId || guests || extras.length > 0 || popUpBeds !== undefined) {
+      const podRecord = await db.Pod.findByPk(podId || existingBooking.podId, {
+        include: ["priceRules"],
+      });
+
+      if (podRecord) {
+        const guestData = guests || {
+          adults: existingBooking.BookingGuests?.[0]?.adults || 0,
+          teenagers: existingBooking.BookingGuests?.[0]?.children || 0,
+          infants: existingBooking.BookingGuests?.[0]?.infants || 0,
+        };
+
+        const priceCalc = priceCalculator({
+          pod: podRecord,
+          boardType: boardType || existingBooking.boardType,
+          guests: {
+            adults: guestData.adults,
+            children: guestData.teenagers,
+            toddlers: 0,
+            infants: guestData.infants,
+          },
+          popUpBeds:
+            popUpBeds !== undefined ? popUpBeds : existingBooking.popUpBeds,
+          extras: extras,
+          podPriceRules: podRecord.priceRules,
+        });
+
+        updateData.totalPrice = priceCalc.total;
+      }
+    }
+
+    // Update booking
+    await existingBooking.update(updateData);
+
+    // Update guest directory if contact info provided
+    if (contact) {
+      const guestDir = existingBooking.GuestDirectory;
+      const guestUpdateData = {};
+
+      if (contact.firstName && contact.lastName) {
+        guestUpdateData.fullName = `${contact.firstName} ${contact.lastName}`;
+      }
+      if (contact.email) guestUpdateData.email = contact.email;
+      if (contact.phone) guestUpdateData.phone = contact.phone;
+      if (contact.gender) guestUpdateData.gender = contact.gender;
+      if (contact.dob) guestUpdateData.dateOfBirth = contact.dob;
+      if (contact.instruction)
+        guestUpdateData.instructions = contact.instruction;
+
+      if (Object.keys(guestUpdateData).length > 0) {
+        await guestDir.update(guestUpdateData);
+      }
+    }
+
+    // Update booking guests if provided
+    if (guests) {
+      const bookingGuest = existingBooking.BookingGuests?.[0];
+      if (bookingGuest) {
+        await bookingGuest.update({
+          adults: guests.adults || bookingGuest.adults,
+          children: guests.teenagers || bookingGuest.children,
+          infants: guests.infants || bookingGuest.infants,
+        });
+      }
+    }
+
+    // Update extras if provided
+    if (extras.length > 0) {
+      // Remove old extras
+      await db.BookingExtra.destroy({ where: { bookingId: id } });
+
+      // Add new extras
+      for (const ex of extras) {
+        const extraModel = await db.Extra.findByPk(ex.id);
+        if (extraModel) {
+          await db.BookingExtra.create({
+            bookingId: id,
+            extraId: extraModel.id,
+            quantity: ex.quantity || 1,
+            totalPrice: parseFloat(extraModel.price) * (ex.quantity || 1),
+          });
+        }
+      }
+    }
+
+    // Update calendar availability if dates changed
+    if (dates?.checkIn || dates?.checkOut) {
+      // Remove old calendar entries
+      await db.CalendarAvailability.destroy({
+        where: { bookingId: id },
+      });
+
+      // Add new calendar entries
+      const checkIn = dates?.checkIn || existingBooking.checkIn;
+      const checkOut = dates?.checkOut || existingBooking.checkOut;
+      const start = new Date(checkIn);
+      const end = new Date(checkOut);
+
+      for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
+        await db.CalendarAvailability.create({
+          podId: podId || existingBooking.podId,
+          date: new Date(d).toISOString().slice(0, 10),
+          status: "booked",
+          bookingId: id,
+        }).catch((e) => {
+          /* ignore duplicates */
+        });
+      }
+    }
+
+    // Log the update
+    await db.BookingLog.create({
+      bookingId: id,
+      action: "Updated booking",
+      newStatus: bookingStatus || existingBooking.bookingStatus,
+    });
+
+    // Return updated booking
+    const updatedBooking = await db.Booking.findByPk(id, {
+      include: [
+        { model: db.GuestDirectory },
+        { model: db.BookingGuest },
+        { model: db.BookingExtra, include: [{ model: db.Extra }] },
+        { model: db.Pod },
+      ],
+    });
+
+    res.json({
+      success: true,
+      message: "Booking updated successfully",
+      booking: updatedBooking,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   createBooking,
   listBookings,
   getBookingDetails,
   findBooking,
+  updateBooking,
 };

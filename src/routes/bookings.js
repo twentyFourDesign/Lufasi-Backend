@@ -5,6 +5,7 @@ const { adminAuth } = require("../middleware/auth");
 
 router.post("/", bookingController.createBooking); // public booking creation
 router.post("/find", bookingController.findBooking); // find booking by reference
+router.put("/:id", bookingController.updateBooking); // update booking
 router.get("/admin", adminAuth, bookingController.listBookings);
 router.get("/:id", adminAuth, bookingController.getBookingDetails);
 

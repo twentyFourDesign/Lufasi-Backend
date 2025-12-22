@@ -210,4 +210,156 @@ async function getBookingDetails(req, res, next) {
   }
 }
 
-module.exports = { createBooking, listBookings, getBookingDetails };
+// Find booking by reference and last name (public)
+async function findBooking(req, res, next) {
+  try {
+    const { bookingReference, lastName } = req.body;
+
+    if (!bookingReference || !lastName) {
+      return res.status(400).json({
+        error: "Missing required fields",
+        required: ["bookingReference", "lastName"],
+      });
+    }
+
+    const booking = await db.Booking.findOne({
+      where: { bookingReference },
+      include: [
+        {
+          model: db.GuestDirectory,
+          where: db.sequelize.where(
+            db.sequelize.fn(
+              "LOWER",
+              db.sequelize.col("GuestDirectory.fullName")
+            ),
+            "LIKE",
+            `%${lastName.toLowerCase()}%`
+          ),
+        },
+        { model: db.Pod, include: [{ model: db.PodImage, as: "images" }] },
+        { model: db.BookingGuest },
+        { model: db.BookingExtra, include: [{ model: db.Extra }] },
+      ],
+    });
+
+    if (!booking) {
+      return res.status(404).json({
+        error: "Booking not found",
+        message: "No booking found with the provided reference and last name",
+      });
+    }
+
+    // Calculate number of nights
+    const checkInDate = new Date(booking.checkIn);
+    const checkOutDate = new Date(booking.checkOut);
+    const numberOfNights = Math.ceil(
+      (checkOutDate - checkInDate) / (1000 * 60 * 60 * 24)
+    );
+
+    // Parse guest names from the guest's fullName
+    const fullName = booking.GuestDirectory.fullName;
+    const [firstName, ...lastNameParts] = fullName.split(" ");
+    const guestLastName = lastNameParts.join(" ");
+
+    // Format booking data to match BookingDraft structure
+    const bookingDraft = {
+      // Basic booking info
+      id: booking.id,
+      reference: booking.bookingReference,
+      status: booking.bookingStatus,
+
+      // Dates
+      dates: {
+        checkIn: new Date(booking.checkIn),
+        checkOut: new Date(booking.checkOut),
+      },
+      numberOfNights,
+
+      // Guests
+      guests: {
+        adults: booking.BookingGuests?.[0]?.adults || 0,
+        teenagers: booking.BookingGuests?.[0]?.children || 0,
+        infants: booking.BookingGuests?.[0]?.infants || 0,
+      },
+
+      // Pod information
+      pod: booking.Pod
+        ? {
+            id: booking.Pod.id.toString(),
+            title: booking.Pod.podName,
+            desc: booking.Pod.description || "",
+            price: parseFloat(booking.Pod.baseAdultPrice || 0),
+            available: true,
+            tags: booking.Pod.amenities ? booking.Pod.amenities.split(",") : [],
+            img: booking.Pod.images?.[0]?.imageUrl || "",
+          }
+        : null,
+
+      // Meal plan (board type)
+      mealPlan: {
+        id: booking.boardType,
+        boardType: booking.boardType,
+        title: booking.boardType === "fullBoard" ? "Full Board" : "Half Board",
+        subtitle:
+          booking.boardType === "fullBoard"
+            ? "Breakfast, Lunch & Dinner"
+            : "Breakfast & Lunch",
+        items: [],
+        price: 0,
+        isActive: true,
+      },
+
+      // Pricing
+      basePrice: parseFloat(booking.Pod?.baseAdultPrice || 0),
+      subTotal: parseFloat(booking.totalPrice),
+
+      // Extras
+      extras:
+        booking.BookingExtras?.map((be) => ({
+          id: be.Extra.id.toString(),
+          name: be.Extra.name,
+          category: be.Extra.category,
+          quantity: be.quantity,
+          price: parseFloat(be.Extra.price),
+          totalPrice: parseFloat(be.totalPrice),
+        })) || [],
+
+      // Contact information
+      contact: {
+        firstName,
+        lastName: guestLastName,
+        email: booking.GuestDirectory.email,
+        phone: booking.GuestDirectory.phone,
+        gender: booking.GuestDirectory.gender,
+        dob: booking.GuestDirectory.dateOfBirth
+          ? new Date(booking.GuestDirectory.dateOfBirth)
+          : null,
+        instruction: booking.GuestDirectory.instructions,
+        guestNames: [],
+      },
+
+      // Payment info
+      payment: {
+        method: "card",
+      },
+
+      // Additional properties
+      createdAt: booking.createdAt,
+      updatedAt: booking.updatedAt,
+    };
+
+    res.json({
+      success: true,
+      booking: bookingDraft,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = {
+  createBooking,
+  listBookings,
+  getBookingDetails,
+  findBooking,
+};

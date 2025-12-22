@@ -12,47 +12,94 @@ function genRef() {
 async function createBooking(req, res, next) {
   try {
     const {
-      guest, // { fullName, email, phone, identificationType, identificationNumber }
+      dates, // { checkIn, checkOut }
+      contact,
       podId,
-      checkIn,
-      checkOut,
       boardType = "fullBoard",
-      guests = {},
+      guests, // { adults, teenagers, infants }
       popUpBeds = 0,
       extras = [],
       discountCode,
       voucherCode,
     } = req.body;
 
-    // basic validations
-    if (!guest || !guest.email || !podId || !checkIn || !checkOut) {
-      return res.status(400).json({ error: "Missing required booking fields" });
+    // Handle both new BookingDraft structure and legacy structure
+    const bookingData = {
+      podId: podId,
+      checkIn: dates?.checkIn,
+      checkOut: dates?.checkOut,
+      boardType: boardType,
+      guests: {
+        adults: guests?.adults || 0,
+        children: guests?.teenagers || 0,
+        toddlers: 0,
+        infants: guests?.infants || 0,
+      },
+      contact: contact
+        ? {
+            fullName: `${contact.firstName} ${contact.lastName}`,
+            email: contact.email,
+            phone: contact.phone,
+            gender: contact.gender,
+            dateOfBirth: contact.dob,
+            identificationType: "",
+            identificationNumber: "",
+          }
+        : null,
+      extras: extras || [],
+      popUpBeds,
+      discountCode,
+      voucherCode,
+    };
+
+    // Basic validations
+    if (
+      !bookingData.contact ||
+      !bookingData.contact.email ||
+      !bookingData.podId ||
+      !bookingData.checkIn ||
+      !bookingData.checkOut
+    ) {
+      return res.status(400).json({
+        error: "Missing required booking fields",
+        required: [
+          "guest/contact info",
+          "podId/pod",
+          "checkIn/dates.checkIn",
+          "checkOut/dates.checkOut",
+        ],
+      });
     }
 
-    const pod = await db.Pod.findByPk(podId, { include: ["priceRules"] });
-    if (!pod) return res.status(404).json({ error: "Pod not found" });
+    const podRecord = await db.Pod.findByPk(bookingData.podId, {
+      include: ["priceRules"],
+    });
+    if (!podRecord) return res.status(404).json({ error: "Pod not found" });
 
-    // price calc
+    // Price calculation
     const priceCalc = priceCalculator({
-      pod,
-      boardType,
-      guests,
-      popUpBeds,
-      extras,
-      podPriceRules: pod.priceRules,
+      pod: podRecord,
+      boardType: bookingData.boardType,
+      guests: bookingData.guests,
+      popUpBeds: bookingData.popUpBeds,
+      extras: bookingData.extras,
+      podPriceRules: podRecord.priceRules,
     });
 
-    // create or find guestDirectory
+    // Create or find guest directory
     let guestDir = await db.GuestDirectory.findOne({
-      where: { email: guest.email },
+      where: { email: bookingData.contact.email },
     });
+
     if (!guestDir) {
       guestDir = await db.GuestDirectory.create({
-        fullName: guest.fullName,
-        email: guest.email,
-        phone: guest.phone,
-        identificationType: guest.identificationType,
-        identificationNumber: guest.identificationNumber,
+        fullName: bookingData.contact.fullName,
+        email: bookingData.contact.email,
+        phone: bookingData.contact.phone,
+        gender: bookingData.contact.gender,
+        dateOfBirth: bookingData.contact.dateOfBirth,
+        identificationType: bookingData.contact.identificationType,
+        identificationNumber: bookingData.contact.identificationNumber,
       });
     }
 
@@ -61,27 +108,27 @@ async function createBooking(req, res, next) {
     const booking = await db.Booking.create({
       bookingReference: bookingRef,
       guestDirectoryId: guestDir.id,
-      podId,
-      checkIn,
-      checkOut,
+      podId: bookingData.podId,
+      checkIn: bookingData.checkIn,
+      checkOut: bookingData.checkOut,
       totalPrice: priceCalc.total,
       bookingStatus: "pending",
-      boardType,
-      popUpBeds,
+      boardType: bookingData.boardType,
+      popUpBeds: bookingData.popUpBeds,
     });
 
     // booking guests
     await db.BookingGuest.create({
       bookingId: booking.id,
-      adults: guests.adults || 0,
-      children: guests.children || 0,
-      toddlers: guests.toddlers || 0,
-      infants: guests.infants || 0,
+      adults: bookingData.guests.adults || 0,
+      children: bookingData.guests.children || 0,
+      toddlers: bookingData.guests.toddlers || 0,
+      infants: bookingData.guests.infants || 0,
     });
 
     // booking extras
-    if (extras && extras.length) {
-      for (const ex of extras) {
+    if (bookingData.extras && bookingData.extras.length) {
+      for (const ex of bookingData.extras) {
         const extraModel = await db.Extra.findByPk(ex.id);
         if (!extraModel) continue;
         await db.BookingExtra.create({
@@ -94,11 +141,11 @@ async function createBooking(req, res, next) {
     }
 
     // Mark calendar as 'booked' for each date range
-    const start = new Date(checkIn);
-    const end = new Date(checkOut);
+    const start = new Date(bookingData.checkIn);
+    const end = new Date(bookingData.checkOut);
     for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
       await db.CalendarAvailability.create({
-        podId,
+        podId: bookingData.podId,
         date: new Date(d).toISOString().slice(0, 10),
         status: "booked",
         bookingId: booking.id,

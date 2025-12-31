@@ -26,6 +26,7 @@ db.Extra = require("./extra")(sequelize, Sequelize);
 db.BookingExtra = require("./bookingExtra")(sequelize, Sequelize);
 db.MealPlan = require("./mealPlan")(sequelize, Sequelize);
 db.GuestDirectory = require("./guestDirectory")(sequelize, Sequelize);
+db.PaymentToken = require("./paymentToken")(sequelize, Sequelize);
 
 // Associations
 db.Property.hasMany(db.Pod, { foreignKey: "propertyId" });
@@ -62,5 +63,9 @@ db.Booking.hasMany(db.BookingLog, { foreignKey: "bookingId" });
 
 db.GuestDirectory.hasMany(db.Booking, { foreignKey: "guestDirectoryId" });
 db.Booking.belongsTo(db.GuestDirectory, { foreignKey: "guestDirectoryId" });
+
+// PaymentToken association - one token per booking
+db.Booking.hasOne(db.PaymentToken, { foreignKey: "bookingId" });
+db.PaymentToken.belongsTo(db.Booking, { foreignKey: "bookingId" });
 
 module.exports = db;

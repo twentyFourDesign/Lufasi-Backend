@@ -1,6 +1,8 @@
+const crypto = require("crypto");
 const db = require("../models");
 const { v4: uuidv4 } = require("uuid");
 const { priceCalculator } = require("../utils/priceCalculator");
+const emailService = require("../services/emailService");
 
 // Helper to generate booking reference
 function genRef() {
@@ -22,8 +24,6 @@ async function createBooking(req, res, next) {
       discountCode,
       voucherCode,
     } = req.body;
-
-    // Handle both new BookingDraft structure and legacy structure
     const bookingData = {
       podId: podId,
       checkIn: dates?.checkIn,
@@ -37,14 +37,14 @@ async function createBooking(req, res, next) {
       },
       contact: contact
         ? {
-            fullName: `${contact.firstName} ${contact.lastName}`,
-            email: contact.email,
-            phone: contact.phone,
-            gender: contact.gender,
-            dateOfBirth: contact.dob,
-            identificationType: "",
-            identificationNumber: "",
-          }
+          fullName: `${contact.firstName} ${contact.lastName}`,
+          email: contact.email,
+          phone: contact.phone,
+          gender: contact.gender,
+          dateOfBirth: contact.dob,
+          identificationType: "",
+          identificationNumber: "",
+        }
         : null,
       extras: extras || [],
       popUpBeds,
@@ -75,8 +75,6 @@ async function createBooking(req, res, next) {
       include: ["priceRules"],
     });
     if (!podRecord) return res.status(404).json({ error: "Pod not found" });
-
-    // Price calculation
     const priceCalc = priceCalculator({
       pod: podRecord,
       boardType: bookingData.boardType,
@@ -101,9 +99,19 @@ async function createBooking(req, res, next) {
         identificationType: bookingData.contact.identificationType,
         identificationNumber: bookingData.contact.identificationNumber,
       });
+    } else {
+      await guestDir.update({
+        fullName: bookingData.contact.fullName,
+        phone: bookingData.contact.phone,
+        gender: bookingData.contact.gender,
+        dateOfBirth: bookingData.contact.dateOfBirth,
+        identificationType: bookingData.contact.identificationType,
+        identificationNumber: bookingData.contact.identificationNumber,
+      });
     }
 
     const bookingRef = genRef();
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
 
     const booking = await db.Booking.create({
       bookingReference: bookingRef,
@@ -115,6 +123,7 @@ async function createBooking(req, res, next) {
       bookingStatus: "pending",
       boardType: bookingData.boardType,
       popUpBeds: bookingData.popUpBeds,
+      expiresAt: expiresAt,
     });
 
     // booking guests
@@ -161,8 +170,18 @@ async function createBooking(req, res, next) {
       newStatus: "pending",
     });
 
-    // Return payment link (mock) - in production create gateway session
-    const paymentLink = `${process.env.APP_BASE_URL}/payments/initiate?bookingId=${booking.id}`;
+    // Generate cryptographically secure payment token
+    const paymentToken = crypto.randomBytes(32).toString("hex");
+
+    // Store payment token with same expiry as booking
+    await db.PaymentToken.create({
+      token: paymentToken,
+      bookingId: booking.id,
+      expiresAt: expiresAt,
+    });
+
+    // Payment link uses opaque token, not bookingId
+    const paymentLink = `${process.env.APP_BASE_URL}/payments/pay/${paymentToken}`;
 
     res.json({
       bookingId: booking.id,
@@ -285,14 +304,14 @@ async function findBooking(req, res, next) {
       // Pod information
       pod: booking.Pod
         ? {
-            id: booking.Pod.id.toString(),
-            title: booking.Pod.podName,
-            desc: booking.Pod.description || "",
-            price: parseFloat(booking.Pod.baseAdultPrice || 0),
-            available: true,
-            tags: booking.Pod.amenities ? booking.Pod.amenities.split(",") : [],
-            img: booking.Pod.images?.[0]?.imageUrl || "",
-          }
+          id: booking.Pod.id.toString(),
+          title: booking.Pod.podName,
+          desc: booking.Pod.description || "",
+          price: parseFloat(booking.Pod.baseAdultPrice || 0),
+          available: true,
+          tags: booking.Pod.amenities ? booking.Pod.amenities.split(",") : [],
+          img: booking.Pod.images?.[0]?.imageUrl || "",
+        }
         : null,
 
       // Meal plan (board type)
@@ -521,6 +540,17 @@ async function updateBooking(req, res, next) {
         { model: db.Pod },
       ],
     });
+
+    // Send cancellation email if status changed to cancelled
+    if (bookingStatus === "cancelled" && existingBooking.bookingStatus !== "cancelled") {
+      emailService.sendBookingCancellation(
+        updatedBooking,
+        updatedBooking.GuestDirectory,
+        updatedBooking.Pod
+      ).catch((err) => {
+        console.error(`Failed to send cancellation email: ${err.message}`);
+      });
+    }
 
     res.json({
       success: true,

@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Booking Confirmed</title>
+</head>
+
+<body style="margin: 0; padding: 0; background: #f5f5f5; font-family: 'Arial', sans-serif;">
+
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding: 20px 0;">
+    <tr>
+      <td align="center">
+
+        <!-- Main Container -->
+        <table width="600" cellpadding="0" cellspacing="0"
+          style="background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08);">
+
+          <!-- Header Image -->
+          <tr>
+            <td>
+              <img src="{{appBaseUrl}}/uploads/pods/default-pod.png" width="600"
+                style="width: 100%; display: block; height: auto;" alt="Lufasi Lodges" />
+            </td>
+          </tr>
+
+          <!-- Success Icon & Title -->
+          <tr>
+            <td style="text-align: center; padding: 30px 20px 15px;">
+              <div
+                style="display: inline-block; width: 60px; height: 60px; background: #e8f5e9; border-radius: 50%; line-height: 60px; margin-bottom: 15px;">
+                <span style="font-size: 28px; color: #2e7d32;">✓</span>
+              </div>
+              <h2 style="color: #1a1a1a; margin: 0; font-size: 28px; font-weight: 700;">Booking Confirmed</h2>
+            </td>
+          </tr>
+
+          <!-- Booking ID Bar -->
+          <tr>
+            <td style="padding: 10px 40px;">
+              <div
+                style="background: linear-gradient(135deg, #e0f2f1 0%, #b2dfdb 100%); padding: 18px; border-radius: 12px; text-align: center;">
+                <span style="color: #555; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Booking
+                  Reference</span>
+                <div style="color: #00695c; font-weight: 700; font-size: 22px; margin-top: 5px; letter-spacing: 2px;">
+                  {{bookingReference}}</div>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Intro Text -->
+          <tr>
+            <td style="padding: 15px 40px; text-align: center; color: #666; font-size: 14px; line-height: 1.6;">
+              <p style="margin: 0;">Dear <strong>{{guestName}}</strong>,</p>
+              <p style="margin: 10px 0 0;">Congratulations on your payment! We have received your payment of <strong
+                  style="color: #2e7d32;">₦{{totalPrice}}</strong>. Your booking is confirmed.</p>
+            </td>
+          </tr>
+
+          <!-- Booking Details Card -->
+          <tr>
+            <td style="padding: 20px 40px;">
+              <div
+                style="background: #fafafa; border: 1px solid #eee; border-radius: 16px; padding: 25px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                <h3
+                  style="margin: 0 0 20px 0; font-size: 18px; text-align: center; color: #333; border-bottom: 2px solid #e0f2f1; padding-bottom: 15px;">
+                  Booking Details</h3>
+
+                <!-- Detail Row: Stay Dates -->
+                <div
+                  style="margin-bottom: 12px; background: #fff; border: 1px solid #f0f0f0; border-radius: 10px; padding: 14px;">
+                  <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td width="40" valign="top">
+                        <span style="font-size: 20px;">📅</span>
+                      </td>
+                      <td>
+                        <div style="color: #888; font-size: 11px; text-transform: uppercase; margin-bottom: 4px;">
+                          Stay Dates</div>
+                        <div style="color: #333; font-weight: 600; font-size: 15px;">Check in: {{checkInDate}}</div>
+                        <div style="color: #333; font-weight: 600; font-size: 15px;">Check out: {{checkOutDate}}</div>
+                      </td>
+                      <td align="right" valign="middle">
+                        <span
+                          style="background: #e8f5e9; color: #2e7d32; padding: 8px 12px; border-radius: 8px; font-weight: 600; font-size: 14px;">{{nights}}
+                          Nights</span>
+                      </td>
+                    </tr>
+                  </table>
+                </div>
+
+                <!-- Detail Row: Pod Type -->
+                <div
+                  style="margin-bottom: 12px; background: #fff; border: 1px solid #f0f0f0; border-radius: 10px; padding: 14px;">
+                  <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td width="40" valign="top">
+                        <span style="font-size: 20px;">🏡</span>
+                      </td>
+                      <td>
+                        <div style="color: #888; font-size: 11px; text-transform: uppercase; margin-bottom: 4px;">Your
+                          Pod</div>
+                        <div style="color: #333; font-weight: 600; font-size: 15px;">{{podName}}</div>
+                      </td>
+                    </tr>
+                  </table>
+                </div>
+
+                <!-- Detail Row: Meal Plan -->
+                <div
+                  style="margin-bottom: 12px; background: #fff; border: 1px solid #f0f0f0; border-radius: 10px; padding: 14px;">
+                  <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td width="40" valign="top">
+                        <span style="font-size: 20px;">🍽️</span>
+                      </td>
+                      <td>
+                        <div style="color: #888; font-size: 11px; text-transform: uppercase; margin-bottom: 4px;">Meal
+                          Plan</div>
+                        <div style="color: #333; font-weight: 600; font-size: 15px;">{{mealPlan}}</div>
+                      </td>
+                    </tr>
+                  </table>
+                </div>
+
+                <!-- Detail Row: Guests -->
+                <div
+                  style="margin-bottom: 12px; background: #fff; border: 1px solid #f0f0f0; border-radius: 10px; padding: 14px;">
+                  <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td width="40" valign="top">
+                        <span style="font-size: 20px;">👥</span>
+                      </td>
+                      <td>
+                        <div style="color: #888; font-size: 11px; text-transform: uppercase; margin-bottom: 4px;">Guests
+                        </div>
+                        <div style="color: #333; font-weight: 600; font-size: 15px;">{{visitors}}</div>
+                      </td>
+                    </tr>
+                  </table>
+                </div>
+
+                <!-- Detail Row: Extras -->
+                <div
+                  style="margin-bottom: 12px; background: #fff; border: 1px solid #f0f0f0; border-radius: 10px; padding: 14px;">
+                  <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td width="40" valign="top">
+                        <span style="font-size: 20px;">✨</span>
+                      </td>
+                      <td>
+                        <div style="color: #888; font-size: 11px; text-transform: uppercase; margin-bottom: 4px;">Extras
+                        </div>
+                        <div style="color: #333; font-weight: 600; font-size: 15px;">{{extras}}</div>
+                      </td>
+                    </tr>
+                  </table>
+                </div>
+
+                <!-- Price Summary -->
+                <div style="margin-top: 20px; padding-top: 20px; border-top: 2px dashed #e0e0e0;">
+                  <table width="100%" cellpadding="8" cellspacing="0">
+                    <tr>
+                      <td style="color: #666; font-size: 14px;">Pod + Guests + Extras (1 night)</td>
+                      <td align="right" style="color: #333; font-weight: 600; font-size: 14px;">₦{{subTotal}}</td>
+                    </tr>
+                    <tr>
+                      <td style="color: #666; font-size: 14px;">Discount</td>
+                      <td align="right" style="color: #2e7d32; font-weight: 600; font-size: 14px;">-₦{{discount}}</td>
+                    </tr>
+                    <tr>
+                      <td style="color: #666; font-size: 14px;">Extras</td>
+                      <td align="right" style="color: #333; font-weight: 600; font-size: 14px;">₦{{extrasAmount}}</td>
+                    </tr>
+                    <tr>
+                      <td style="color: #666; font-size: 14px;">VAT (Consumption tax at 7.5%)</td>
+                      <td align="right" style="color: #333; font-weight: 600; font-size: 14px;">₦{{vat}}</td>
+                    </tr>
+                    <tr style="background: #f5f5f5;">
+                      <td
+                        style="color: #000; font-weight: 700; font-size: 18px; padding: 15px 8px; border-radius: 8px 0 0 8px;">
+                        TOTAL</td>
+                      <td align="right"
+                        style="color: #2e7d32; font-weight: 700; font-size: 18px; padding: 15px 8px; border-radius: 0 8px 8px 0;">
+                        ₦{{totalPrice}}</td>
+                    </tr>
+                  </table>
+                  <div style="text-align: center; margin-top: 15px;">
+                    <span
+                      style="color: #ef5350; background: #ffebee; border: 1px dashed #ef5350; padding: 8px 15px; font-size: 11px; border-radius: 6px; display: inline-block;">⚠️
+                      Advance payment fee is non-refundable as per our Terms & Conditions.</span>
+                  </div>
+                </div>
+
+              </div>
+            </td>
+          </tr>
+
+          <!-- Directions Section -->
+          <tr>
+            <td style="padding: 20px 40px 10px;">
+              <h4 style="margin: 0 0 12px 0; color: #00695c; font-size: 16px;">Directions</h4>
+              <p style="margin: 0 0 15px; color: #666; font-size: 13px; line-height: 1.6;">
+                1. Take the Lekki-Epe Expressway towards Epe.<br>
+                2. Continue to Majek bus stop.<br>
+                3. Lufasi Nature Park is just after Majek, on the right side of the road.
+              </p>
+              <p style="margin: 0; color: #666; font-size: 13px; line-height: 1.6;">
+                Use this Google Maps link to navigate directly to the campsite. Once you turn left off of Lekki-Epe
+                expressway, please follow the signs to Lufasi Nature Park.
+              </p>
+              <p style="margin: 15px 0 0; color: #666; font-size: 13px; line-height: 1.6;">
+                <strong>Important to note:</strong><br>
+                There is a toll gate at the beach entrance operated by the Ibeju-Lekki community.<br>
+                - Access fee: ₦200 per car (cash)<br>
+                - User payment only
+              </p>
+            </td>
+          </tr>
+
+          <!-- Early Arrival Options -->
+          <tr>
+            <td style="padding: 10px 40px;">
+              <h4 style="margin: 0 0 12px 0; color: #00695c; font-size: 16px;">Early Arrival Options</h4>
+              <p style="margin: 0; color: #666; font-size: 13px; line-height: 1.6;">
+                Check-in time is from 2:00 PM. If you arrive early, you are welcome to enjoy our outdoor spaces.
+                <br><br>
+                If you would like to have access to your pod earlier, please contact us. Early check-in is subject to
+                availability and may incur an extra cost.
+              </p>
+              <p style="margin: 15px 0 0; color: #666; font-size: 13px; line-height: 1.6;">
+                You can view our full check-in and check-out policy here: <a href="{{appBaseUrl}}/policies"
+                  style="color: #00695c;">Policies</a>.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Last Hour Bookings -->
+          <tr>
+            <td style="padding: 10px 40px;">
+              <h4 style="margin: 0 0 12px 0; color: #00695c; font-size: 16px;">Last Hour Bookings</h4>
+              <p style="margin: 0; color: #666; font-size: 13px; line-height: 1.6;">
+                If you arrive after our reception has closed, please ensure you contact us for late check-in
+                arrangements prior to your arrival.
+                <br><br>
+                This helps us ensure a smooth experience for you and other guests arriving at similar times.
+              </p>
+              <p style="margin: 15px 0 0; color: #666; font-size: 13px; line-height: 1.6;">
+                <a href="{{appBaseUrl}}/contact" style="color: #00695c;">Click here</a> to schedule late check-in or
+                request information.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Terms & Important Information -->
+          <tr>
+            <td style="padding: 10px 40px;">
+              <h4 style="margin: 0 0 12px 0; color: #00695c; font-size: 16px;">Terms & Important Information</h4>
+              <p style="margin: 0; color: #666; font-size: 13px; line-height: 1.6;">
+                Enjoy your stay!<br>
+                If your booking was made via phone/email, please ensure you are familiar with our booking terms and
+                conditions before arrival.
+                <br><br>
+                This helps us ensure a smooth experience for you and all other guests utilizing the camp.
+              </p>
+              <p style="margin: 15px 0 0; color: #666; font-size: 13px; line-height: 1.6;">
+                <a href="{{appBaseUrl}}/terms" style="color: #00695c;">Click here</a> to review house rules and
+                important information.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Important things to know -->
+          <tr>
+            <td style="padding: 10px 40px;">
+              <h4 style="margin: 0 0 12px 0; color: #00695c; font-size: 16px;">Important things to know</h4>
+              <p style="margin: 0 0 10px; color: #666; font-size: 13px; line-height: 1.6;">
+                We want to ensure a smooth and enjoyable experience. Please note the following:
+              </p>
+              <ul style="margin: 0; padding-left: 20px; color: #666; font-size: 13px; line-height: 1.6;">
+                <li>Lufasi Nature Park is an outdoor destination. We are not responsible for changes in weather
+                  conditions during your stay like rain, or heat temperatures as are part of the nature experience - we
+                  encourage guests to come prepared.</li>
+                <li>We are not responsible for items left in your rooms/tents after check-out. Many aspects of our
+                  grounds are configured to keys and passcodes for security.</li>
+              </ul>
+            </td>
+          </tr>
+
+          <!-- Additional Information & Support -->
+          <tr>
+            <td style="padding: 20px 40px;">
+              <div style="border-top: 1px solid #eee; padding-top: 20px;">
+                <h4 style="margin: 0 0 12px 0; color: #00695c; font-size: 16px;">Additional Information & Support</h4>
+                <p style="margin: 0 0 10px; color: #666; font-size: 13px; line-height: 1.6;">
+                  For more details about your stay, plan, custom arrangements, contact our support team anytime.
+                  If you need assistance during your stay, visit reception or contact us:
+                </p>
+                <ul style="margin: 0; padding-left: 20px; color: #666; font-size: 13px; line-height: 1.6;">
+                  <li>Email: <a href="mailto:bookings@lufasiresorts.com"
+                      style="color: #00695c;">bookings@lufasiresorts.com</a></li>
+                  <li>Phone: <a href="tel:+2348123456789" style="color: #00695c;">+234 812 345 6789</a></li>
+                  <li>WhatsApp (text only): <a href="https://wa.me/2348123456789" style="color: #00695c;">+234 812 345
+                      6789</a></li>
+                </ul>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Info Cards Section -->
+          <tr>
+            <td style="padding: 0 40px 25px;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td width="32%"
+                    style="background: #f5f5f5; border-radius: 12px; padding: 20px; vertical-align: top; text-align: center;">
+                    <span style="font-size: 32px;">⏰</span>
+                    <h4 style="margin: 10px 0 8px 0; color: #333; font-size: 13px;">Anytime/Time Escape</h4>
+                    <p style="margin: 0; color: #666; font-size: 11px; line-height: 1.5;">
+                      Lufasi Glamps is open on weekends!
+                      See Friday through Sunday's available pods and dates.
+                    </p>
+                    <a href="{{appBaseUrl}}"
+                      style="display: inline-block; margin-top: 10px; color: #00695c; font-size: 11px; text-decoration: none;">Book
+                      now →</a>
+                  </td>
+                  <td width="2%"></td>
+                  <td width="32%"
+                    style="background: #f5f5f5; border-radius: 12px; padding: 20px; vertical-align: top; text-align: center;">
+                    <span style="font-size: 32px;">🌿</span>
+                    <h4 style="margin: 10px 0 8px 0; color: #333; font-size: 13px;">Thoughtfully Designed Glamps</h4>
+                    <p style="margin: 0; color: #666; font-size: 11px; line-height: 1.5;">
+                      Explore our eco-friendly pods built with sustainability and comfort in mind.
+                    </p>
+                    <a href="{{appBaseUrl}}"
+                      style="display: inline-block; margin-top: 10px; color: #00695c; font-size: 11px; text-decoration: none;">Explore
+                      More →</a>
+                  </td>
+                  <td width="2%"></td>
+                  <td width="32%"
+                    style="background: #f5f5f5; border-radius: 12px; padding: 20px; vertical-align: top; text-align: center;">
+                    <span style="font-size: 32px;">🎯</span>
+                    <h4 style="margin: 10px 0 8px 0; color: #333; font-size: 13px;">Activities & Meals Included</h4>
+                    <p style="margin: 0; color: #666; font-size: 11px; line-height: 1.5;">
+                      Breakfast, nature walks, and other activities are included with your stay!
+                    </p>
+                    <a href="{{appBaseUrl}}"
+                      style="display: inline-block; margin-top: 10px; color: #00695c; font-size: 11px; text-decoration: none;">More
+                      Options →</a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #004d40 0%, #00695c 100%); color: #fff; padding: 35px 40px;">
+              <table width="100%">
+                <tr>
+                  <td width="50%" valign="top">
+                    <h4 style="margin: 0 0 12px 0; font-size: 18px;">Lufasi Lodges</h4>
+                    <p style="margin: 0; font-size: 12px; color: #b2dfdb; line-height: 1.7;">
+                      Experience nature at its finest.<br />
+                      Majek 1st Gate, Km 41,<br />
+                      Lekki-Epe Expressway,<br />
+                      Lagos, Nigeria.
+                    </p>
+                  </td>
+                  <td width="50%" valign="top" align="right">
+                    <h4 style="margin: 0 0 12px 0; font-size: 18px;">Contact</h4>
+                    <p style="margin: 0; font-size: 12px; color: #b2dfdb; line-height: 1.7;">
+                      📍 Lufasi Lodges, Cape Town,<br />
+                      South Africa<br />
+                      📞 +234 (0) 123 456 7890<br />
+                      ✉️ stay@lufasilodges.com
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <td colspan="2" style="padding-top: 20px;">
+                    <h4 style="margin: 0 0 12px 0; font-size: 14px;">Follow Us</h4>
+                    <p style="margin: 0; font-size: 24px;">
+                      <a href="#" style="color: #fff; text-decoration: none; margin-right: 10px;">📘</a>
+                      <a href="#" style="color: #fff; text-decoration: none; margin-right: 10px;">🐦</a>
+                      <a href="#" style="color: #fff; text-decoration: none; margin-right: 10px;">📷</a>
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <td colspan="2"
+                    style="padding-top: 25px; border-top: 1px solid rgba(255,255,255,0.15); font-size: 11px; text-align: center; color: #80cbc4;">
+                    © 2024 Lufasi Lodges. All rights reserved.<br />
+                    <a href="{{appBaseUrl}}/unsubscribe" style="color: #80cbc4; text-decoration: none;">Unsubscribe</a>
+                    | <a href="{{appBaseUrl}}/privacy" style="color: #80cbc4; text-decoration: none;">Privacy Policy</a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+  </table>
+
+</body>
+
+</html>

@@ -445,6 +445,9 @@ async function updateBooking(req, res, next) {
       }
     }
 
+    // IMPORTANT: Save the original status BEFORE update (Sequelize mutates the object)
+    const originalBookingStatus = existingBooking.bookingStatus;
+
     // Update booking
     await existingBooking.update(updateData);
 
@@ -542,13 +545,22 @@ async function updateBooking(req, res, next) {
     });
 
     // Send cancellation email if status changed to cancelled
-    if (bookingStatus === "cancelled" && existingBooking.bookingStatus !== "cancelled") {
+    if (bookingStatus === "cancelled" && originalBookingStatus !== "cancelled") {
       emailService.sendBookingCancellation(
         updatedBooking,
         updatedBooking.GuestDirectory,
         updatedBooking.Pod
       ).catch((err) => {
         console.error(`Failed to send cancellation email: ${err.message}`);
+      });
+
+      // Send admin alert about cancellation
+      emailService.sendAdminCancellationAlert(
+        updatedBooking,
+        updatedBooking.GuestDirectory,
+        updatedBooking.Pod
+      ).catch((err) => {
+        console.error(`Failed to send admin cancellation alert: ${err.message}`);
       });
     }
 

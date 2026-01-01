@@ -22,7 +22,6 @@ class EmailService {
         emailConfig.getTransportConfig()
       );
       this.initialized = true;
-      console.log(`Email service initialized with provider: ${emailConfig.provider}`);
       return true;
     } catch (error) {
       console.error("Failed to initialize email service:", error.message);
@@ -66,7 +65,6 @@ class EmailService {
       };
 
       const info = await this.transporter.sendMail(mailOptions);
-      console.log(`Email sent to ${to}: ${info.messageId}`);
       return { success: true, messageId: info.messageId };
     } catch (error) {
       console.error(`Failed to send email to ${to}:`, error.message);
@@ -130,6 +128,44 @@ class EmailService {
 
     return this.sendEmail({
       to: guest.email,
+      subject,
+      html,
+    });
+  }
+
+  async sendAdminBookingAlert(booking, guest, pod) {
+    if (!emailConfig.enabled.adminAlerts) {
+      return { success: false, message: "Admin alerts disabled" };
+    }
+
+    if (!this.initialized) {
+      this.initialize();
+    }
+
+    const subject = `New Booking Confirmed - ${booking.bookingReference}`;
+    const html = this.generateAdminBookingAlertEmail(booking, guest, pod);
+
+    return this.sendEmail({
+      to: emailConfig.adminEmail,
+      subject,
+      html,
+    });
+  }
+
+  async sendAdminCancellationAlert(booking, guest, pod) {
+    if (!emailConfig.enabled.adminAlerts) {
+      return { success: false, message: "Admin alerts disabled" };
+    }
+
+    if (!this.initialized) {
+      this.initialize();
+    }
+
+    const subject = `Booking Cancelled - ${booking.bookingReference}`;
+    const html = this.generateAdminCancellationAlertEmail(booking, guest, pod);
+
+    return this.sendEmail({
+      to: emailConfig.adminEmail,
       subject,
       html,
     });
@@ -522,6 +558,300 @@ class EmailService {
 </body>
 </html>`;
   }
+
+
+  generateAdminBookingAlertEmail(booking, guest, pod) {
+    const checkInDate = new Date(booking.checkIn).toLocaleDateString("en-US", {
+      weekday: "short", day: "numeric", month: "long", year: "numeric"
+    });
+    const checkOutDate = new Date(booking.checkOut).toLocaleDateString("en-US", {
+      weekday: "short", day: "numeric", month: "long", year: "numeric"
+    });
+
+    const checkIn = new Date(booking.checkIn);
+    const checkOut = new Date(booking.checkOut);
+    const nights = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24)) || 1;
+
+    const totalPrice = parseFloat(booking.totalPrice || 0);
+    const adults = booking.adults || 1;
+    const children = booking.children || 0;
+    const infants = booking.infants || 0;
+
+    return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>New Booking Alert</title>
+</head>
+<body style="margin: 0; padding: 0; background: #f5f5f5; font-family: 'Arial', sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding: 20px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0"
+          style="background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08);">
+          
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #1565c0 0%, #1976d2 100%); padding: 30px; text-align: center;">
+              <h1 style="color: #fff; margin: 0; font-size: 24px; font-weight: 700;">🔔 New Booking Confirmed</h1>
+            </td>
+          </tr>
+
+          <!-- Alert Message -->
+          <tr>
+            <td style="padding: 20px 40px; text-align: center; background: #e3f2fd; border-bottom: 3px solid #1976d2;">
+              <p style="margin: 0; color: #1565c0; font-size: 16px; font-weight: 600;">A new booking has been confirmed and paid</p>
+            </td>
+          </tr>
+
+          <!-- Booking Reference -->
+          <tr>
+            <td style="padding: 20px 40px;">
+              <div style="background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%); padding: 18px; border-radius: 12px; text-align: center; border-left: 4px solid #ff9800;">
+                <span style="color: #e65100; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">Booking Reference</span>
+                <div style="color: #e65100; font-weight: 700; font-size: 24px; margin-top: 5px; letter-spacing: 2px;">${booking.bookingReference}</div>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Guest Information -->
+          <tr>
+            <td style="padding: 10px 40px;">
+              <h3 style="margin: 0 0 15px 0; color: #1565c0; font-size: 18px; border-bottom: 2px solid #e3f2fd; padding-bottom: 10px;">Guest Information</h3>
+              <table width="100%" cellpadding="8" cellspacing="0">
+                <tr>
+                  <td style="color: #666; font-size: 14px; width: 40%;">Name:</td>
+                  <td style="color: #333; font-weight: 600; font-size: 14px;">${guest.fullName}</td>
+                </tr>
+                <tr>
+                  <td style="color: #666; font-size: 14px;">Email:</td>
+                  <td style="color: #333; font-weight: 600; font-size: 14px;">${guest.email}</td>
+                </tr>
+                <tr>
+                  <td style="color: #666; font-size: 14px;">Phone:</td>
+                  <td style="color: #333; font-weight: 600; font-size: 14px;">${guest.phone || "N/A"}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Booking Details -->
+          <tr>
+            <td style="padding: 10px 40px;">
+              <h3 style="margin: 0 0 15px 0; color: #1565c0; font-size: 18px; border-bottom: 2px solid #e3f2fd; padding-bottom: 10px;">Booking Details</h3>
+              <table width="100%" cellpadding="8" cellspacing="0">
+                <tr>
+                  <td style="color: #666; font-size: 14px; width: 40%;">Pod:</td>
+                  <td style="color: #333; font-weight: 600; font-size: 14px;">${pod?.title || pod?.podName || "N/A"}</td>
+                </tr>
+                <tr>
+                  <td style="color: #666; font-size: 14px;">Check-in:</td>
+                  <td style="color: #333; font-weight: 600; font-size: 14px;">${checkInDate}</td>
+                </tr>
+                <tr>
+                  <td style="color: #666; font-size: 14px;">Check-out:</td>
+                  <td style="color: #333; font-weight: 600; font-size: 14px;">${checkOutDate}</td>
+                </tr>
+                <tr>
+                  <td style="color: #666; font-size: 14px;">Nights:</td>
+                  <td style="color: #333; font-weight: 600; font-size: 14px;">${nights}</td>
+                </tr>
+                <tr>
+                  <td style="color: #666; font-size: 14px;">Guests:</td>
+                  <td style="color: #333; font-weight: 600; font-size: 14px;">${adults} Adults, ${children} Children, ${infants} Infants</td>
+                </tr>
+                <tr>
+                  <td style="color: #666; font-size: 14px;">Meal Plan:</td>
+                  <td style="color: #333; font-weight: 600; font-size: 14px;">${booking.mealPlan || booking.boardType || "N/A"}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Payment Information -->
+          <tr>
+            <td style="padding: 10px 40px 30px;">
+              <div style="background: #e8f5e9; border-radius: 12px; padding: 20px; border-left: 4px solid #4caf50;">
+                <table width="100%" cellpadding="5" cellspacing="0">
+                  <tr>
+                    <td style="color: #2e7d32; font-size: 14px; font-weight: 600;">Payment Status:</td>
+                    <td align="right" style="color: #2e7d32; font-weight: 700; font-size: 14px;">✓ PAID</td>
+                  </tr>
+                  <tr>
+                    <td style="color: #2e7d32; font-size: 16px; font-weight: 700; padding-top: 10px;">Total Amount:</td>
+                    <td align="right" style="color: #2e7d32; font-weight: 700; font-size: 20px; padding-top: 10px;">₦${totalPrice.toLocaleString()}</td>
+                  </tr>
+                </table>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background: #f5f5f5; padding: 20px 40px; text-align: center; border-top: 1px solid #e0e0e0;">
+              <p style="margin: 0; color: #666; font-size: 12px;">This is an automated admin notification from Lufasi Lodges</p>
+              <p style="margin: 5px 0 0; color: #999; font-size: 11px;">© ${new Date().getFullYear()} Lufasi Lodges. All rights reserved.</p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+  }
+
+  generateAdminCancellationAlertEmail(booking, guest, pod) {
+    const checkInDate = new Date(booking.checkIn).toLocaleDateString("en-US", {
+      weekday: "short", day: "numeric", month: "long", year: "numeric"
+    });
+    const checkOutDate = new Date(booking.checkOut).toLocaleDateString("en-US", {
+      weekday: "short", day: "numeric", month: "long", year: "numeric"
+    });
+
+    const checkIn = new Date(booking.checkIn);
+    const checkOut = new Date(booking.checkOut);
+    const nights = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24)) || 1;
+
+    const totalPrice = parseFloat(booking.totalPrice || 0);
+    const adults = booking.adults || 1;
+    const children = booking.children || 0;
+    const infants = booking.infants || 0;
+    const cancelledAt = new Date().toLocaleDateString("en-US", {
+      weekday: "short", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit"
+    });
+
+    return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Booking Cancellation Alert</title>
+</head>
+<body style="margin: 0; padding: 0; background: #f5f5f5; font-family: 'Arial', sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding: 20px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0"
+          style="background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08);">
+          
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #c62828 0%, #d32f2f 100%); padding: 30px; text-align: center;">
+              <h1 style="color: #fff; margin: 0; font-size: 24px; font-weight: 700;">⚠️ Booking Cancelled</h1>
+            </td>
+          </tr>
+
+          <!-- Alert Message -->
+          <tr>
+            <td style="padding: 20px 40px; text-align: center; background: #ffebee; border-bottom: 3px solid #d32f2f;">
+              <p style="margin: 0; color: #c62828; font-size: 16px; font-weight: 600;">A booking has been cancelled</p>
+            </td>
+          </tr>
+
+          <!-- Booking Reference -->
+          <tr>
+            <td style="padding: 20px 40px;">
+              <div style="background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%); padding: 18px; border-radius: 12px; text-align: center; border-left: 4px solid #ff9800;">
+                <span style="color: #e65100; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">Booking Reference</span>
+                <div style="color: #e65100; font-weight: 700; font-size: 24px; margin-top: 5px; letter-spacing: 2px;">${booking.bookingReference}</div>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Cancellation Info -->
+          <tr>
+            <td style="padding: 10px 40px;">
+              <div style="background: #ffebee; border-radius: 8px; padding: 12px; text-align: center;">
+                <span style="color: #c62828; font-size: 13px; font-weight: 600;">Cancelled on: ${cancelledAt}</span>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Guest Information -->
+          <tr>
+            <td style="padding: 10px 40px;">
+              <h3 style="margin: 0 0 15px 0; color: #c62828; font-size: 18px; border-bottom: 2px solid #ffebee; padding-bottom: 10px;">Guest Information</h3>
+              <table width="100%" cellpadding="8" cellspacing="0">
+                <tr>
+                  <td style="color: #666; font-size: 14px; width: 40%;">Name:</td>
+                  <td style="color: #333; font-weight: 600; font-size: 14px;">${guest.fullName}</td>
+                </tr>
+                <tr>
+                  <td style="color: #666; font-size: 14px;">Email:</td>
+                  <td style="color: #333; font-weight: 600; font-size: 14px;">${guest.email}</td>
+                </tr>
+                <tr>
+                  <td style="color: #666; font-size: 14px;">Phone:</td>
+                  <td style="color: #333; font-weight: 600; font-size: 14px;">${guest.phone || "N/A"}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Booking Details -->
+          <tr>
+            <td style="padding: 10px 40px;">
+              <h3 style="margin: 0 0 15px 0; color: #c62828; font-size: 18px; border-bottom: 2px solid #ffebee; padding-bottom: 10px;">Cancelled Booking Details</h3>
+              <table width="100%" cellpadding="8" cellspacing="0">
+                <tr>
+                  <td style="color: #666; font-size: 14px; width: 40%;">Pod:</td>
+                  <td style="color: #333; font-weight: 600; font-size: 14px;">${pod?.title || pod?.podName || "N/A"}</td>
+                </tr>
+                <tr>
+                  <td style="color: #666; font-size: 14px;">Check-in:</td>
+                  <td style="color: #333; font-weight: 600; font-size: 14px;">${checkInDate}</td>
+                </tr>
+                <tr>
+                  <td style="color: #666; font-size: 14px;">Check-out:</td>
+                  <td style="color: #333; font-weight: 600; font-size: 14px;">${checkOutDate}</td>
+                </tr>
+                <tr>
+                  <td style="color: #666; font-size: 14px;">Nights:</td>
+                  <td style="color: #333; font-weight: 600; font-size: 14px;">${nights}</td>
+                </tr>
+                <tr>
+                  <td style="color: #666; font-size: 14px;">Guests:</td>
+                  <td style="color: #333; font-weight: 600; font-size: 14px;">${adults} Adults, ${children} Children, ${infants} Infants</td>
+                </tr>
+                <tr>
+                  <td style="color: #666; font-size: 14px;">Total Amount:</td>
+                  <td style="color: #333; font-weight: 600; font-size: 14px;">₦${totalPrice.toLocaleString()}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Action Required -->
+          <tr>
+            <td style="padding: 10px 40px 30px;">
+              <div style="background: #fff3e0; border-radius: 12px; padding: 20px; border-left: 4px solid #ff9800;">
+                <h4 style="margin: 0 0 10px 0; color: #e65100; font-size: 16px;">⚡ Action Required</h4>
+                <p style="margin: 0; color: #666; font-size: 13px; line-height: 1.6;">
+                  Please review this cancellation and process any refund if applicable according to the cancellation policy.
+                </p>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background: #f5f5f5; padding: 20px 40px; text-align: center; border-top: 1px solid #e0e0e0;">
+              <p style="margin: 0; color: #666; font-size: 12px;">This is an automated admin notification from Lufasi Lodges</p>
+              <p style="margin: 5px 0 0; color: #999; font-size: 11px;">© ${new Date().getFullYear()} Lufasi Lodges. All rights reserved.</p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+  }
+
 
 
   htmlToText(html) {

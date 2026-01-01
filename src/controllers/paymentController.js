@@ -493,24 +493,20 @@ async function handleSuccessfulPayment(booking, payment, verifyResult) {
   // Send booking confirmation email (only after payment success)
   if (booking.GuestDirectory) {
     emailService.sendBookingConfirmation(booking, booking.GuestDirectory, pod)
-      .then((result) => {
-        if (result.success) {
-          console.log(`Booking confirmation email sent for ${booking.bookingReference}`);
-        }
-      })
       .catch((err) => {
         console.error(`Failed to send booking confirmation email: ${err.message}`);
       });
 
     // Also send payment success email
     emailService.sendPaymentSuccess(booking, booking.GuestDirectory, payment)
-      .then((result) => {
-        if (result.success) {
-          console.log(`Payment success email sent for ${booking.bookingReference}`);
-        }
-      })
       .catch((err) => {
         console.error(`Failed to send payment success email: ${err.message}`);
+      });
+
+    // Send admin alert about new booking
+    emailService.sendAdminBookingAlert(booking, booking.GuestDirectory, pod)
+      .catch((err) => {
+        console.error(`Failed to send admin booking alert: ${err.message}`);
       });
   }
 
@@ -541,17 +537,11 @@ async function handleFailedPayment(booking, payment, verifyResult) {
   // Send payment failed email with retry option
   if (booking.GuestDirectory) {
     emailService.sendPaymentFailed(booking, booking.GuestDirectory)
-      .then((result) => {
-        if (result.success) {
-          console.log(`Payment failed email sent for ${booking.bookingReference}`);
-        }
-      })
       .catch((err) => {
         console.error(`Failed to send payment failed email: ${err.message}`);
       });
   }
 
-  console.log(`Payment failed for booking ${booking.bookingReference} - booking remains pending for retry`);
 }
 
 /**

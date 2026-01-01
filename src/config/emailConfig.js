@@ -44,14 +44,6 @@ const emailConfig = {
 
     getTransportConfig() {
         if (this.provider === "gmail") {
-            // Debug: show what credentials are being used
-            const maskedPass = this.gmail.password
-                ? this.gmail.password.substring(0, 4) + "****" + this.gmail.password.substring(this.gmail.password.length - 4)
-                : "(empty)";
-            console.log(`[EMAIL DEBUG] Gmail User: ${this.gmail.user || "(empty)"}`);
-            console.log(`[EMAIL DEBUG] Gmail App Password: ${maskedPass}`);
-            console.log(`[EMAIL DEBUG] From Address: ${this.from.address}`);
-
             return {
                 service: this.gmail.service,
                 auth: {

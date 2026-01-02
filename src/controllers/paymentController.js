@@ -493,18 +493,33 @@ async function handleSuccessfulPayment(booking, payment, verifyResult) {
   // Send booking confirmation email (only after payment success)
   if (booking.GuestDirectory) {
     emailService.sendBookingConfirmation(booking, booking.GuestDirectory, pod)
+      .then((result) => {
+        if (result.success) {
+          console.log(`Booking confirmation email sent for ${booking.bookingReference}`);
+        }
+      })
       .catch((err) => {
         console.error(`Failed to send booking confirmation email: ${err.message}`);
       });
 
     // Also send payment success email
     emailService.sendPaymentSuccess(booking, booking.GuestDirectory, payment)
+      .then((result) => {
+        if (result.success) {
+          console.log(`Payment success email sent for ${booking.bookingReference}`);
+        }
+      })
       .catch((err) => {
         console.error(`Failed to send payment success email: ${err.message}`);
       });
 
     // Send admin alert about new booking
     emailService.sendAdminBookingAlert(booking, booking.GuestDirectory, pod)
+      .then((result) => {
+        if (result.success) {
+          console.log(`Admin booking alert sent for ${booking.bookingReference}`);
+        }
+      })
       .catch((err) => {
         console.error(`Failed to send admin booking alert: ${err.message}`);
       });

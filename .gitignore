@@ -5,9 +5,8 @@ yarn-debug.log*
 yarn-error.log*
 
 # Environment variables
-.env
-.env.*
 
 # Logs
 logs/
 *.log
+config.bat

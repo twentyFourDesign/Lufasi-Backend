@@ -216,6 +216,7 @@ async function getBookingDetails(req, res, next) {
     const booking = await db.Booking.findByPk(req.params.id, {
       include: [
         { model: db.GuestDirectory },
+        { model: db.Pod },
         { model: db.BookingGuest },
         { model: db.BookingPayment },
         { model: db.BookingExtra, include: [{ model: db.Extra }] },
@@ -573,6 +574,80 @@ async function updateBooking(req, res, next) {
     next(err);
   }
 }
+// Send email based on booking status (admin)
+async function sendConfirmation(req, res, next) {
+  try {
+    const { id } = req.params;
+
+    const booking = await db.Booking.findByPk(id, {
+      include: [
+        { model: db.GuestDirectory },
+        { model: db.Pod },
+        { model: db.BookingGuest },
+      ],
+    });
+
+    if (!booking) {
+      return res.status(404).json({ error: "Booking not found" });
+    }
+
+    const guest = booking.GuestDirectory;
+    if (!guest?.email) {
+      return res.status(400).json({ error: "Guest email not available" });
+    }
+
+    // Send appropriate email based on booking status
+    if (booking.bookingStatus === "cancelled") {
+      await emailService.sendBookingCancellation(booking, guest, booking.Pod);
+      res.json({
+        success: true,
+        message: "Cancellation email sent successfully",
+      });
+    } else {
+      await emailService.sendBookingConfirmation(booking, guest, booking.Pod);
+      res.json({
+        success: true,
+        message: "Confirmation email sent successfully",
+      });
+    }
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Resend invoice (admin)
+async function resendInvoice(req, res, next) {
+  try {
+    const { id } = req.params;
+
+    const booking = await db.Booking.findByPk(id, {
+      include: [
+        { model: db.GuestDirectory },
+        { model: db.Pod },
+        { model: db.BookingPayment },
+      ],
+    });
+
+    if (!booking) {
+      return res.status(404).json({ error: "Booking not found" });
+    }
+
+    const guest = booking.GuestDirectory;
+    if (!guest?.email) {
+      return res.status(400).json({ error: "Guest email not available" });
+    }
+
+    // Send confirmation email (acts as invoice)
+    await emailService.sendBookingConfirmation(booking, guest, booking.Pod);
+
+    res.json({
+      success: true,
+      message: "Invoice resent successfully",
+    });
+  } catch (err) {
+    next(err);
+  }
+}
 
 module.exports = {
   createBooking,
@@ -580,4 +655,6 @@ module.exports = {
   getBookingDetails,
   findBooking,
   updateBooking,
+  sendConfirmation,
+  resendInvoice,
 };

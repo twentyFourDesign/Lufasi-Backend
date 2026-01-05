@@ -14,7 +14,9 @@ module.exports = (sequelize) => {
       price: { type: DataTypes.DECIMAL(12, 2) },
       category: { type: DataTypes.STRING(100) },
       imageUrl: { type: DataTypes.TEXT },
+      isActive: { type: DataTypes.BOOLEAN, defaultValue: true },
     },
     { tableName: "extras" }
   );
 };
+

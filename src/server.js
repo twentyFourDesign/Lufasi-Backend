@@ -9,7 +9,7 @@ async function init() {
     // Sync database -- in production, replace with migrations
     await db.sequelize.authenticate();
     console.log("Database connected.");
-    await db.sequelize.sync({ alter: true }); // change to { force: false } or use migrations
+    await db.sequelize.sync(); // sync without alter to avoid constraint issues
     console.log("Database synced.");
 
     app.listen(PORT, () => {

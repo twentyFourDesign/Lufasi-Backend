@@ -3,7 +3,7 @@ const { v4: uuidv4 } = require("uuid");
 
 async function createExtra(req, res, next) {
   try {
-    const { name, description, price, category, imageUrl } = req.body;
+    const { name, description, price, category, imageUrl, isActive } = req.body;
     const extra = await db.Extra.create({
       id: uuidv4(),
       name,
@@ -11,6 +11,7 @@ async function createExtra(req, res, next) {
       price,
       category,
       imageUrl,
+      isActive: isActive !== undefined ? isActive : true,
     });
     res.json({ extra });
   } catch (err) {
@@ -20,7 +21,9 @@ async function createExtra(req, res, next) {
 
 async function listExtras(req, res, next) {
   try {
-    const extras = await db.Extra.findAll();
+    const extras = await db.Extra.findAll({
+      order: [["name", "ASC"]],
+    });
     res.json({ extras });
   } catch (err) {
     next(err);
@@ -30,6 +33,7 @@ async function listExtras(req, res, next) {
 async function getExtrasByCategory(req, res, next) {
   try {
     const extras = await db.Extra.findAll({
+      where: { isActive: true },
       order: [
         ["category", "ASC"],
         ["name", "ASC"],
@@ -82,4 +86,16 @@ async function updateExtra(req, res, next) {
   }
 }
 
-module.exports = { createExtra, listExtras, updateExtra, getExtrasByCategory };
+async function deleteExtra(req, res, next) {
+  try {
+    const ex = await db.Extra.findByPk(req.params.id);
+    if (!ex) return res.status(404).json({ error: "Extra not found" });
+    await ex.destroy();
+    res.json({ message: "Extra deleted successfully" });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { createExtra, listExtras, updateExtra, deleteExtra, getExtrasByCategory };
+

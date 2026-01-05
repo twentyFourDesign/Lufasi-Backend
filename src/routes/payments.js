@@ -5,18 +5,16 @@ const paymentCtrl = require("../controllers/paymentController");
 // Check booking status before payment (handles expiration)
 router.get("/check-booking/:bookingId", paymentCtrl.checkBookingForPayment);
 
-// Token-based payment initiation (public, hides bookingId)
-// POST accepts { gateway: "paystack" | "squadco" } in body
 router.post("/pay/:token", paymentCtrl.payWithToken);
 // GET also supported with ?gateway= query param
 router.get("/pay/:token", paymentCtrl.payWithToken);
 
-// Initialize payment with gateway selection (POST for API, GET for browser redirect)
+
 router.post("/initialize", paymentCtrl.initializePayment);
 router.get("/initialize", paymentCtrl.initializePaymentGet);
 
 // Callback URL - Paystack/SquadCo redirects here after payment
-// This ONLY shows status to user, does NOT confirm payment (webhook handles confirmation)
+
 router.get("/callback", paymentCtrl.handlePaymentCallback);
 
 // Verify payment status (for polling)

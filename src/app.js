@@ -3,15 +3,8 @@ const bodyParser = require("body-parser");
 const cors = require("cors");
 const path = require("path");
 
-const authRoutes = require("./routes/auth");
-const podRoutes = require("./routes/pods");
-const availabilityRoutes = require("./routes/availability");
-const bookingRoutes = require("./routes/bookings");
-const extraRoutes = require("./routes/extras");
-const mealPlanRoutes = require("./routes/mealPlans");
-const discountRoutes = require("./routes/discounts");
-const paymentRoutes = require("./routes/payments");
-const adminRoutes = require("./routes/admin");
+// Import all routes from central index
+const { registerRoutes } = require("./routes");
 
 const app = express();
 
@@ -21,22 +14,13 @@ app.use(bodyParser.json({ limit: "10mb" }));
 // Serve static files (images) from uploads directory
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
+// Health check
 app.get("/", (req, res) =>
   res.json({ ok: true, service: "Lufasi Lodges Booking API" })
 );
 
-// Public routes
-app.use("/auth", authRoutes);
-app.use("/pods", podRoutes);
-app.use("/availability", availabilityRoutes);
-app.use("/bookings", bookingRoutes);
-app.use("/extras", extraRoutes);
-app.use("/meal-plans", mealPlanRoutes);
-app.use("/discounts", discountRoutes);
-app.use("/payments", paymentRoutes);
-
-// Admin protected routes
-app.use("/admin", adminRoutes);
+// Register all routes
+registerRoutes(app);
 
 // Error handler
 app.use((err, req, res, next) => {

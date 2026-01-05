@@ -1,9 +1,9 @@
 const db = require("../models");
+const { v4: uuidv4 } = require("uuid");
 
 async function getMealPlans(req, res, next) {
   try {
     const mealPlans = await db.MealPlan.findAll({
-      where: { isActive: true },
       order: [["boardType", "ASC"]],
     });
 
@@ -18,7 +18,7 @@ async function getMealPlans(req, res, next) {
       isActive: plan.isActive,
     }));
 
-    res.json(formattedPlans);
+    res.json({ mealPlans: formattedPlans });
   } catch (err) {
     next(err);
   }
@@ -40,7 +40,7 @@ async function getMealPlan(req, res, next) {
     }
 
     const formatted = {
-      id: mealPlan.boardType,
+      id: mealPlan.id,
       boardType: mealPlan.boardType,
       title: mealPlan.title,
       subtitle: mealPlan.subtitle,
@@ -88,4 +88,54 @@ async function getMealPlanByBoardType(req, res, next) {
   }
 }
 
-module.exports = { getMealPlans, getMealPlan, getMealPlanByBoardType };
+async function createMealPlan(req, res, next) {
+  try {
+    const { boardType, title, subtitle, items, price, isActive } = req.body;
+
+    const mealPlan = await db.MealPlan.create({
+      id: uuidv4(),
+      boardType,
+      title,
+      subtitle,
+      items: items || [],
+      price,
+      isActive: isActive !== undefined ? isActive : true,
+    });
+
+    res.json({ mealPlan });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function updateMealPlan(req, res, next) {
+  try {
+    const mealPlan = await db.MealPlan.findByPk(req.params.id);
+    if (!mealPlan) return res.status(404).json({ error: "Meal plan not found" });
+    await mealPlan.update(req.body);
+    res.json({ mealPlan });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function deleteMealPlan(req, res, next) {
+  try {
+    const mealPlan = await db.MealPlan.findByPk(req.params.id);
+    if (!mealPlan) return res.status(404).json({ error: "Meal plan not found" });
+    await mealPlan.destroy();
+    res.json({ message: "Meal plan deleted successfully" });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = {
+  getMealPlans,
+  getMealPlan,
+  getMealPlanByBoardType,
+  createMealPlan,
+  updateMealPlan,
+  deleteMealPlan
+};
+

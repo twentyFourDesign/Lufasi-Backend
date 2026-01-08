@@ -9,8 +9,12 @@ async function init() {
     // Sync database -- in production, replace with migrations
     await db.sequelize.authenticate();
     console.log("Database connected.");
-    await db.sequelize.sync(); // sync without alter to avoid constraint issues
-    console.log("Database synced.");
+    if (process.env.NODE_ENV !== 'production') {
+      await db.sequelize.sync();
+      console.log("Database synced.");
+    }
+
+
 
     app.listen(PORT, () => {
       console.log(`Server started on port ${PORT}`);

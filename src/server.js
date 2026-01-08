@@ -10,7 +10,7 @@ async function init() {
     await db.sequelize.authenticate();
     console.log("Database connected.");
     if (process.env.NODE_ENV !== 'production') {
-      await db.sequelize.sync();
+      await db.sequelize.sync({ alter: true });
       console.log("Database synced.");
     }
 

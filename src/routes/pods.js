@@ -25,6 +25,9 @@ router.put(
 );
 
 // Pod image management (admin)
+router.put("/:id/delete", adminAuth, podController.softDeletePod);
+router.put("/:id/restore", adminAuth, podController.restorePod);
+
 router.post(
     "/:podId/images",
     adminAuth,

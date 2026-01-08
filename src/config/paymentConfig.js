@@ -18,8 +18,8 @@ const paymentConfig = {
       initialize: "/transaction/initialize",
       verify: "/transaction/verify",
     },
-    // Callback URL after payment (frontend handles this)
-    callbackUrl: process.env.PAYSTACK_CALLBACK_URL || `${process.env.APP_BASE_URL}/payments/callback`,
+    // Callback URL after payment - redirects to frontend payment result page
+    callbackUrl: process.env.PAYSTACK_CALLBACK_URL || `${process.env.FRONTEND_URL || 'http://localhost:5173'}/payment/result`,
   },
 
   // SquadCo Configuration
@@ -32,7 +32,8 @@ const paymentConfig = {
       initialize: "/transaction/initiate",
       verify: "/transaction/verify",
     },
-    callbackUrl: process.env.SQUADCO_CALLBACK_URL || `${process.env.APP_BASE_URL}/payments/callback`,
+    // Callback URL after payment - redirects to frontend payment result page
+    callbackUrl: process.env.SQUADCO_CALLBACK_URL || `${process.env.FRONTEND_URL || 'http://localhost:5173'}/payment/result`,
   },
 
   // Currency settings

@@ -18,5 +18,8 @@ router.use("/payments", adminAuth, require("./payments"));
 router.use("/discounts", adminAuth, require("./discounts"));
 
 router.get("/dashboard/summary", adminAuth, adminController.dashboardSummary);
+router.get("/guests", adminAuth, adminController.getGuestDetails);
+router.get("/logs", adminAuth, adminController.getBookingLogs);
+router.get("/reports/stats", adminAuth, adminController.getReportsStats);
 
 module.exports = router;

@@ -20,6 +20,8 @@ async function createPod(req, res, next) {
       maxChildren: body.maxChildren || 0,
       maxToddlers: body.maxToddlers || 0,
       maxInfants: body.maxInfants || 2,
+      minAdults: body.minAdults || 1,
+      minChildren: body.minChildren || 0,
       isActive: body.isActive !== undefined ? body.isActive : true,
     });
 
@@ -47,6 +49,7 @@ async function createPod(req, res, next) {
           imageUrl: imageData.imageUrl,
           sortOrder: i,
           isPrimary: i === 0,
+
         });
         images.push(podImage);
       }
@@ -68,7 +71,14 @@ async function createPod(req, res, next) {
 
 async function listPods(req, res, next) {
   try {
+    const { Op } = require("sequelize");
+    const where = {};
+    if (req.query.includeDeleted !== "true") {
+      where[Op.or] = [{ isDeleted: false }, { isDeleted: null }];
+    }
+
     const pods = await db.Pod.findAll({
+      where,
       include: [
         { model: db.PodImage, as: "images" },
         "priceRules",
@@ -266,6 +276,30 @@ async function reorderImages(req, res, next) {
   }
 }
 
+async function softDeletePod(req, res, next) {
+  try {
+    const pod = await db.Pod.findByPk(req.params.id);
+    if (!pod) return res.status(404).json({ error: "Pod not found" });
+
+    await pod.update({ isDeleted: true });
+    res.json({ message: "Pod deleted successfully" });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function restorePod(req, res, next) {
+  try {
+    const pod = await db.Pod.findByPk(req.params.id);
+    if (!pod) return res.status(404).json({ error: "Pod not found" });
+
+    await pod.update({ isDeleted: false });
+    res.json({ message: "Pod restored successfully", pod });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   createPod,
   listPods,
@@ -275,4 +309,6 @@ module.exports = {
   deletePodImage,
   setPrimaryImage,
   reorderImages,
+  softDeletePod,
+  restorePod,
 };

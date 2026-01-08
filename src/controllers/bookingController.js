@@ -75,6 +75,29 @@ async function createBooking(req, res, next) {
       include: ["priceRules"],
     });
     if (!podRecord) return res.status(404).json({ error: "Pod not found" });
+
+    // Age Verification (18+)
+    if (bookingData.contact && bookingData.contact.dateOfBirth) {
+      const dob = new Date(bookingData.contact.dateOfBirth);
+      const today = new Date();
+      let age = today.getFullYear() - dob.getFullYear();
+      const m = today.getMonth() - dob.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+        age--;
+      }
+      if (age < 18) {
+        return res.status(400).json({
+          error: "The primary guest must be at least 18 years old."
+        });
+      }
+    } else {
+      // If dateOfBirth is mandatory, you can enforce it here.
+      // Assuming it's required as per "check that the booking guest is atleast 18"
+      return res.status(400).json({
+        error: "Date of birth is required for the primary guest."
+      });
+    }
+
     const priceCalc = priceCalculator({
       pod: podRecord,
       boardType: bookingData.boardType,

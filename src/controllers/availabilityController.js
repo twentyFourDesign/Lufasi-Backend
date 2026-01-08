@@ -34,11 +34,22 @@ async function checkAvailability(req, res, next) {
     });
 
     const occupiedPodIds = new Set(exclusions.map((e) => e.podId));
-    const pods = await db.Pod.findAll({ include: ["images", "priceRules"] });
+    const pods = await db.Pod.findAll({
+      where: {
+        [Op.or]: [
+          { isDeleted: false },
+          { isDeleted: null }
+        ]
+      },
+      include: ["images", "priceRules"]
+    });
 
     // Format all pods with availability status
     const formattedPods = pods.map((pod) => {
-      const isOccupied =
+      // Pod is available if:
+      // 1. NOT in occupied list (no bookings/blocks for the date range)
+      // 2. Has sufficient capacity for guests
+      const isAvailable =
         !occupiedPodIds.has(pod.id) &&
         adults <= pod.maxAdults &&
         children <= pod.maxChildren;
@@ -48,7 +59,7 @@ async function checkAvailability(req, res, next) {
         title: pod.podName,
         desc: pod.description,
         price: parseFloat(pod.baseAdultPrice),
-        available: !isOccupied,
+        available: isAvailable,
         tags: pod.rules ? pod.rules.split(",").map((tag) => tag.trim()) : [],
         img: `${req.protocol}://${req.get(
           "host"

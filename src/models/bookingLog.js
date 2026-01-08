@@ -13,6 +13,7 @@ module.exports = (sequelize) => {
       action: { type: DataTypes.STRING(255) },
       oldStatus: { type: DataTypes.STRING(50) },
       newStatus: { type: DataTypes.STRING(50) },
+      errorMessage: { type: DataTypes.TEXT, allowNull: true },
       ipAddress: { type: DataTypes.STRING(100) },
       userAgent: { type: DataTypes.TEXT },
       timestamp: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },

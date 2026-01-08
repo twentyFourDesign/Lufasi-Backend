@@ -19,7 +19,10 @@ module.exports = (sequelize) => {
       maxChildren: { type: DataTypes.INTEGER, defaultValue: 0 },
       maxToddlers: { type: DataTypes.INTEGER, defaultValue: 0 },
       maxInfants: { type: DataTypes.INTEGER, defaultValue: 2 },
+      minAdults: { type: DataTypes.INTEGER, defaultValue: 1 },
+      minChildren: { type: DataTypes.INTEGER, defaultValue: 0 },
       isActive: { type: DataTypes.BOOLEAN, defaultValue: true },
+      isDeleted: { type: DataTypes.BOOLEAN, defaultValue: false },
     },
     { tableName: "pods" }
   );

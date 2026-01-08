@@ -841,11 +841,12 @@ async function handlePaymentCallback(req, res, next) {
     const { reference, trxref, status } = req.query;
     const txRef = reference || trxref;
 
+    // Frontend URL for redirecting after payment
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+
     if (!txRef) {
-      return res.status(400).json({
-        success: false,
-        error: "Missing payment reference"
-      });
+      // Redirect to frontend with error
+      return res.redirect(`${frontendUrl}/payment/result?error=missing_reference`);
     }
 
     const payment = await db.BookingPayment.findOne({
@@ -853,11 +854,8 @@ async function handlePaymentCallback(req, res, next) {
     });
 
     if (!payment) {
-      return res.status(404).json({
-        success: false,
-        error: "Payment not found",
-        reference: txRef
-      });
+      // Redirect to frontend with error
+      return res.redirect(`${frontendUrl}/payment/result?error=payment_not_found&reference=${txRef}`);
     }
 
     const booking = await db.Booking.findByPk(payment.bookingId, {
@@ -883,63 +881,13 @@ async function handlePaymentCallback(req, res, next) {
       await booking.reload();
     }
 
-    const isSuccess = payment.paymentStatus === "successful" || booking.bookingStatus === "confirmed" || booking.bookingStatus === "paid";
-    const isFailed = payment.paymentStatus === "failed";
-
-    if (isSuccess) {
-      return res.json({
-        success: true,
-        message: "Payment successful",
-        bookingId: booking.id,
-        bookingReference: booking.bookingReference,
-        amount: parseFloat(booking.totalPrice),
-        paymentReference: payment.transactionReference,
-        paymentStatus: payment.paymentStatus,
-        bookingStatus: booking.bookingStatus,
-        paidAt: payment.paidAt,
-        checkIn: booking.checkIn,
-        checkOut: booking.checkOut,
-        guest: {
-          name: booking.GuestDirectory?.fullName,
-          email: booking.GuestDirectory?.email,
-          phone: booking.GuestDirectory?.phone
-        },
-        guests: {
-          adults: booking.BookingGuests?.[0]?.adults || 0,
-          children: booking.BookingGuests?.[0]?.children || 0,
-          infants: booking.BookingGuests?.[0]?.infants || 0
-        },
-        gateway: payment.gateway
-      });
-    } else if (isFailed) {
-      return res.json({
-        success: false,
-        message: "Payment failed",
-        bookingId: booking.id,
-        bookingReference: booking.bookingReference,
-        amount: parseFloat(booking.totalPrice),
-        paymentReference: payment.transactionReference,
-        paymentStatus: payment.paymentStatus,
-        bookingStatus: booking.bookingStatus
-      });
-    } else {
-      return res.json({
-        success: false,
-        message: "Payment processing",
-        bookingId: booking.id,
-        bookingReference: booking.bookingReference,
-        amount: parseFloat(booking.totalPrice),
-        paymentReference: payment.transactionReference,
-        paymentStatus: payment.paymentStatus,
-        bookingStatus: booking.bookingStatus
-      });
-    }
+    // Redirect to frontend payment result page with reference
+    // Frontend will then call API to get full details
+    return res.redirect(`${frontendUrl}/payment/result?reference=${txRef}`);
   } catch (err) {
     console.error("handlePaymentCallback error:", err);
-    res.status(500).json({
-      success: false,
-      error: err.message
-    });
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    return res.redirect(`${frontendUrl}/payment/result?error=server_error`);
   }
 }
 

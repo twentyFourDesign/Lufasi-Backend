@@ -25,7 +25,7 @@ module.exports = (sequelize) => {
           "abandoned",
           "cancelled",
           "confirmed",
-          "expired"
+          "expired",
         ),
         defaultValue: "pending",
       },
@@ -34,8 +34,9 @@ module.exports = (sequelize) => {
         defaultValue: "fullBoard",
       },
       popUpBeds: { type: DataTypes.INTEGER, defaultValue: 0 },
+      podCount: { type: DataTypes.INTEGER, defaultValue: 1 },
       expiresAt: { type: DataTypes.DATE, allowNull: true },
     },
-    { tableName: "bookings" }
+    { tableName: "bookings" },
   );
 };

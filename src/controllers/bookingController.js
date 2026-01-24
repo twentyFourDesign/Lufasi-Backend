@@ -37,14 +37,14 @@ async function createBooking(req, res, next) {
       },
       contact: contact
         ? {
-          fullName: `${contact.firstName} ${contact.lastName}`,
-          email: contact.email,
-          phone: contact.phone,
-          gender: contact.gender,
-          dateOfBirth: contact.dob,
-          identificationType: "",
-          identificationNumber: "",
-        }
+            fullName: `${contact.firstName} ${contact.lastName}`,
+            email: contact.email,
+            phone: contact.phone,
+            gender: contact.gender,
+            dateOfBirth: contact.dob,
+            identificationType: "",
+            identificationNumber: "",
+          }
         : null,
       extras: extras || [],
       popUpBeds,
@@ -56,7 +56,7 @@ async function createBooking(req, res, next) {
     if (
       !bookingData.contact ||
       !bookingData.contact.email ||
-      !bookingData.podId ||
+      bookingData.podCount < 1 ||
       !bookingData.checkIn ||
       !bookingData.checkOut
     ) {
@@ -87,14 +87,14 @@ async function createBooking(req, res, next) {
       }
       if (age < 18) {
         return res.status(400).json({
-          error: "The primary guest must be at least 18 years old."
+          error: "The primary guest must be at least 18 years old.",
         });
       }
     } else {
       // If dateOfBirth is mandatory, you can enforce it here.
       // Assuming it's required as per "check that the booking guest is atleast 18"
       return res.status(400).json({
-        error: "Date of birth is required for the primary guest."
+        error: "Date of birth is required for the primary guest.",
       });
     }
 
@@ -273,10 +273,10 @@ async function findBooking(req, res, next) {
           where: db.sequelize.where(
             db.sequelize.fn(
               "LOWER",
-              db.sequelize.col("GuestDirectory.fullName")
+              db.sequelize.col("GuestDirectory.fullName"),
             ),
             "LIKE",
-            `%${lastName.toLowerCase()}%`
+            `%${lastName.toLowerCase()}%`,
           ),
         },
         { model: db.Pod, include: [{ model: db.PodImage, as: "images" }] },
@@ -296,7 +296,7 @@ async function findBooking(req, res, next) {
     const checkInDate = new Date(booking.checkIn);
     const checkOutDate = new Date(booking.checkOut);
     const numberOfNights = Math.ceil(
-      (checkOutDate - checkInDate) / (1000 * 60 * 60 * 24)
+      (checkOutDate - checkInDate) / (1000 * 60 * 60 * 24),
     );
 
     // Parse guest names from the guest's fullName
@@ -328,15 +328,16 @@ async function findBooking(req, res, next) {
       // Pod information
       pod: booking.Pod
         ? {
-          id: booking.Pod.id.toString(),
-          title: booking.Pod.podName,
-          desc: booking.Pod.description || "",
-          price: parseFloat(booking.Pod.baseAdultPrice || 0),
-          available: true,
-          tags: booking.Pod.amenities ? booking.Pod.amenities.split(",") : [],
-          img: booking.Pod.images?.[0]?.imageUrl || "",
-        }
+            id: booking.Pod.id.toString(),
+            title: booking.Pod.podName,
+            desc: booking.Pod.description || "",
+            price: parseFloat(booking.Pod.baseAdultPrice || 0),
+            available: true,
+            tags: booking.Pod.amenities ? booking.Pod.amenities.split(",") : [],
+            img: booking.Pod.images?.[0]?.imageUrl || "",
+          }
         : null,
+      podCount: booking.podCount || 0,
 
       // Meal plan (board type)
       mealPlan: {
@@ -569,23 +570,32 @@ async function updateBooking(req, res, next) {
     });
 
     // Send cancellation email if status changed to cancelled
-    if (bookingStatus === "cancelled" && originalBookingStatus !== "cancelled") {
-      emailService.sendBookingCancellation(
-        updatedBooking,
-        updatedBooking.GuestDirectory,
-        updatedBooking.Pod
-      ).catch((err) => {
-        console.error(`Failed to send cancellation email: ${err.message}`);
-      });
+    if (
+      bookingStatus === "cancelled" &&
+      originalBookingStatus !== "cancelled"
+    ) {
+      emailService
+        .sendBookingCancellation(
+          updatedBooking,
+          updatedBooking.GuestDirectory,
+          updatedBooking.Pod,
+        )
+        .catch((err) => {
+          console.error(`Failed to send cancellation email: ${err.message}`);
+        });
 
       // Send admin alert about cancellation
-      emailService.sendAdminCancellationAlert(
-        updatedBooking,
-        updatedBooking.GuestDirectory,
-        updatedBooking.Pod
-      ).catch((err) => {
-        console.error(`Failed to send admin cancellation alert: ${err.message}`);
-      });
+      emailService
+        .sendAdminCancellationAlert(
+          updatedBooking,
+          updatedBooking.GuestDirectory,
+          updatedBooking.Pod,
+        )
+        .catch((err) => {
+          console.error(
+            `Failed to send admin cancellation alert: ${err.message}`,
+          );
+        });
     }
 
     res.json({

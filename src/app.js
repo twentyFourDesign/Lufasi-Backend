@@ -8,6 +8,8 @@ const { registerRoutes } = require("./routes");
 
 const app = express();
 
+app.set("trust proxy", 1); // Trust first proxy (ngrok)
+
 app.use(cors());
 app.use(bodyParser.json({ limit: "10mb" }));
 app.use(bodyParser.urlencoded({ extended: true })); // Parse form data from payment page

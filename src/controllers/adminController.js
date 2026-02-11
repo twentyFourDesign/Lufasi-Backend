@@ -208,6 +208,7 @@ async function getBookingLogs(req, res, next) {
       bookingReference: log.Booking?.bookingReference || "N/A",
       guestName: log.Booking?.GuestDirectory?.fullName || "Unknown",
       timestamp: log.timestamp,
+      action: log.action,
       status: log.newStatus,
       errorMessage: log.errorMessage || "NIL"
     }));

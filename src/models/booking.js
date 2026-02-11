@@ -26,6 +26,8 @@ module.exports = (sequelize) => {
           "cancelled",
           "confirmed",
           "expired",
+          "confirmed_unassigned",
+          "ready_for_checkin"
         ),
         defaultValue: "pending",
       },

@@ -12,5 +12,6 @@ router.get("/:id", adminAuth, bookingController.getBookingDetails);
 // Admin email actions
 router.post("/:id/send-confirmation", adminAuth, bookingController.sendConfirmation);
 router.post("/:id/resend-invoice", adminAuth, bookingController.resendInvoice);
+router.post("/:id/allocate-pod", adminAuth, bookingController.allocatePod);
 
 module.exports = router;

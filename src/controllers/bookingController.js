@@ -682,6 +682,127 @@ async function resendInvoice(req, res, next) {
   }
 }
 
+async function allocatePod(req, res, next) {
+  const t = await db.sequelize.transaction();
+  try {
+    const { id } = req.params;
+    const { podIds } = req.body; // Expecting an array of pod IDs
+
+    if (!podIds || !Array.isArray(podIds) || podIds.length === 0) {
+      return res.status(400).json({ error: "At least one podId is required" });
+    }
+
+    const booking = await db.Booking.findByPk(id);
+    if (!booking) {
+      await t.rollback();
+      return res.status(404).json({ error: "Booking not found" });
+    }
+
+    if (podIds.length !== booking.podCount) {
+      await t.rollback();
+      return res.status(400).json({
+        error: `This booking requires exactly ${booking.podCount} pod(s). Provided: ${podIds.length}`,
+      });
+    }
+
+    // Verify all pods exist
+    const pods = await db.Pod.findAll({
+      where: { id: { [db.Sequelize.Op.in]: podIds } },
+      transaction: t,
+    });
+
+    if (pods.length !== podIds.length) {
+      await t.rollback();
+      return res.status(404).json({ error: "One or more pods not found" });
+    }
+
+    // Check availability for all selected pods
+    const start = new Date(booking.checkIn);
+    const end = new Date(booking.checkOut);
+    const dates = [];
+    for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
+      dates.push(new Date(d).toISOString().slice(0, 10));
+    }
+
+    const existingOccupancy = await db.CalendarAvailability.findOne({
+      where: {
+        podId: { [db.Sequelize.Op.in]: podIds },
+        date: { [db.Sequelize.Op.in]: dates },
+        status: { [db.Sequelize.Op.in]: ["booked", "blocked"] },
+        bookingId: { [db.Sequelize.Op.ne]: booking.id }, // exclude current booking
+      },
+      transaction: t,
+    });
+
+    if (existingOccupancy) {
+      const occupiedPod = pods.find((p) => p.id === existingOccupancy.podId);
+      await t.rollback();
+      return res.status(400).json({
+        error: `Pod "${occupiedPod?.podName}" is already booked for these dates`,
+      });
+    }
+
+    const oldStatus = booking.bookingStatus;
+
+    // Update booking - we store the first podId as primary (for backward compatibility/single pod bookings)
+    // but the source of truth for multiple pods will be CalendarAvailability
+    await booking.update(
+      {
+        podId: podIds[0],
+        bookingStatus: "ready_for_checkin",
+      },
+      { transaction: t },
+    );
+
+    // Update CalendarAvailability
+    // 1. Remove old records for this booking
+    await db.CalendarAvailability.destroy({
+      where: { bookingId: booking.id },
+      transaction: t,
+    });
+
+    // 2. Create new records for all selected pods
+    for (const podId of podIds) {
+      for (const date of dates) {
+        await db.CalendarAvailability.create(
+          {
+            podId,
+            date,
+            status: "booked",
+            bookingId: booking.id,
+          },
+          { transaction: t },
+        );
+      }
+    }
+
+    // Log action
+    const podNames = pods.map((p) => p.podName).join(", ");
+    await db.BookingLog.create(
+      {
+        bookingId: booking.id,
+        action: `Pods manually allocated: ${podNames}`,
+        oldStatus,
+        newStatus: "ready_for_checkin",
+        userAgent: req.get("user-agent"),
+        ipAddress: req.ip,
+      },
+      { transaction: t },
+    );
+
+    await t.commit();
+
+    res.json({
+      success: true,
+      message: `${podIds.length} pod(s) allocated successfully: ${podNames}`,
+      booking,
+    });
+  } catch (err) {
+    if (t) await t.rollback();
+    next(err);
+  }
+}
+
 module.exports = {
   createBooking,
   listBookings,
@@ -690,4 +811,5 @@ module.exports = {
   updateBooking,
   sendConfirmation,
   resendInvoice,
+  allocatePod,
 };

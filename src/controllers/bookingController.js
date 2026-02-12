@@ -803,6 +803,69 @@ async function allocatePod(req, res, next) {
   }
 }
 
+// Cancel booking (admin)
+async function cancelBooking(req, res, next) {
+  const t = await db.sequelize.transaction();
+  try {
+    const { id } = req.params;
+
+    const booking = await db.Booking.findByPk(id, {
+      include: [
+        { model: db.GuestDirectory },
+        { model: db.Pod },
+      ],
+      transaction: t,
+    });
+
+    if (!booking) {
+      await t.rollback();
+      return res.status(404).json({ error: "Booking not found" });
+    }
+
+    const oldStatus = booking.bookingStatus;
+
+    // Update status to cancelled
+    await booking.update({ bookingStatus: "cancelled" }, { transaction: t });
+
+    // Remove calendar availability entries to free up dates
+    await db.CalendarAvailability.destroy({
+      where: { bookingId: booking.id },
+      transaction: t,
+    });
+
+    // Log the cancellation
+    await db.BookingLog.create({
+      bookingId: booking.id,
+      action: "Booking cancelled by Admin",
+      oldStatus,
+      newStatus: "cancelled",
+      userAgent: req.get("user-agent"),
+      ipAddress: req.ip,
+    }, { transaction: t });
+
+    await t.commit();
+
+    // Send cancellation email asynchronously
+    if (booking.GuestDirectory?.email) {
+      emailService.sendBookingCancellation(booking, booking.GuestDirectory, booking.Pod)
+        .catch(err => console.error(`Failed to send cancellation email: ${err.message}`));
+      
+      // Send admin alert
+      emailService.sendAdminCancellationAlert(booking, booking.GuestDirectory, booking.Pod)
+        .catch(err => console.error(`Failed to send admin cancellation alert: ${err.message}`));
+    }
+
+    res.json({
+      success: true,
+      message: "Booking cancelled successfully",
+      booking,
+    });
+  } catch (err) {
+    if (t) await t.rollback();
+    next(err);
+  }
+}
+
 module.exports = {
   createBooking,
   listBookings,
@@ -812,4 +875,5 @@ module.exports = {
   sendConfirmation,
   resendInvoice,
   allocatePod,
+  cancelBooking,
 };

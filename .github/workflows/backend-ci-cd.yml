@@ -11,7 +11,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -29,20 +28,19 @@ jobs:
     needs: build
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
-
     steps:
       - name: Setup SSH with embedded private key
         run: |
           mkdir -p ~/.ssh
           cat > ~/.ssh/id_ed25519 << 'EOF'
------BEGIN OPENSSH PRIVATE KEY-----
-b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
-QyNTUxOQAAACDg9SGIQP0TfiCtBxCSWkt3Wn1MpCUrtLjNdy51gGccJwAAAJggHZSGIB2U
-hgAAAAtzc2gtZWQyNTUxOQAAACDg9SGIQP0TfiCtBxCSWkt3Wn1MpCUrtLjNdy51gGccJw
-AAAECnEuNZRW6GXIiTr8A0o/xZgt2UHaodxxw/daAr/+xJ7eD1IYhA/RN+IK0HEJJaS3da
-fUykJSu0uM13LnWAZxwnAAAAFWdpdGh1Yi1hY3Rpb25zLWRlcGxveQ==
------END OPENSSH PRIVATE KEY-----
-EOF
+          -----BEGIN OPENSSH PRIVATE KEY-----
+          b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
+          QyNTUxOQAAACDg9SGIQP0TfiCtBxCSWkt3Wn1MpCUrtLjNdy51gGccJwAAAJggHZSGIB2U
+          hgAAAAtzc2gtZWQyNTUxOQAAACDg9SGIQP0TfiCtBxCSWkt3Wn1MpCUrtLjNdy51gGccJw
+          AAAECnEuNZRW6GXIiTr8A0o/xZgt2UHaodxxw/daAr/+xJ7eD1IYhA/RN+IK0HEJJaS3da
+          fUykJSu0uM13LnWAZxwnAAAAFWdpdGh1Yi1hY3Rpb25zLWRlcGxveQ==
+          -----END OPENSSH PRIVATE KEY-----
+          EOF
           chmod 600 ~/.ssh/id_ed25519
           eval "$(ssh-agent -s)"
           ssh-add ~/.ssh/id_ed25519

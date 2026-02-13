@@ -29,28 +29,9 @@ jobs:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
-      - name: Setup SSH with embedded private key
-        run: |
-          mkdir -p ~/.ssh
-          cat > ~/.ssh/id_ed25519 << 'EOF'
------BEGIN OPENSSH PRIVATE KEY-----
-b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
-QyNTUxOQAAACDg9SGIQP0TfiCtBxCSWkt3Wn1MpCUrtLjNdy51gGccJwAAAJggHZSGIB2U
-hgAAAAtzc2gtZWQyNTUxOQAAACDg9SGIQP0TfiCtBxCSWkt3Wn1MpCUrtLjNdy51gGccJw
-AAAECnEuNZRW6GXIiTr8A0o/xZgt2UHaodxxw/daAr/+xJ7eD1IYhA/RN+IK0HEJJaS3da
-fUykJSu0uM13LnWAZxwnAAAAFWdpdGh1Yi1hY3Rpb25zLWRlcGxveQ==
------END OPENSSH PRIVATE KEY-----
-EOF
-          chmod 600 ~/.ssh/id_ed25519
-          eval "$(ssh-agent -s)"
-          ssh-add ~/.ssh/id_ed25519
-          ssh-keyscan -H ${{ secrets.DO_HOST }} >> ~/.ssh/known_hosts
-
-      - name: Deploy to DigitalOcean
-        run: |
-          ssh -tt -o StrictHostKeyChecking=no ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }} << 'EOF'
-            cd /home/deploy/apps/Lufasi-Backend
-            git pull origin main
-            npm install --production
-            pm2 reload lufasi-backend
-          EOF
+      - name: Run deploy script
+        run: bash scripts/deploy.sh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          DO_HOST: ${{ secrets.DO_HOST }}
+          DO_USER: ${{ secrets.DO_USER }}

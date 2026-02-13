@@ -31,10 +31,18 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Setup SSH
+      - name: Setup SSH with embedded private key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          cat > ~/.ssh/id_ed25519 << 'EOF'
+-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
+QyNTUxOQAAACDg9SGIQP0TfiCtBxCSWkt3Wn1MpCUrtLjNdy51gGccJwAAAJggHZSGIB2U
+hgAAAAtzc2gtZWQyNTUxOQAAACDg9SGIQP0TfiCtBxCSWkt3Wn1MpCUrtLjNdy51gGccJw
+AAAECnEuNZRW6GXIiTr8A0o/xZgt2UHaodxxw/daAr/+xJ7eD1IYhA/RN+IK0HEJJaS3da
+fUykJSu0uM13LnWAZxwnAAAAFWdpdGh1Yi1hY3Rpb25zLWRlcGxveQ==
+-----END OPENSSH PRIVATE KEY-----
+EOF
           chmod 600 ~/.ssh/id_ed25519
           eval "$(ssh-agent -s)"
           ssh-add ~/.ssh/id_ed25519

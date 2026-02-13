@@ -46,7 +46,6 @@ EOF
           ssh-add ~/.ssh/id_ed25519
           ssh-keyscan -H ${{ secrets.DO_HOST }} >> ~/.ssh/known_hosts
 
-
       - name: Deploy to DigitalOcean
         run: |
           ssh -tt -o StrictHostKeyChecking=no ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }} << 'EOF'

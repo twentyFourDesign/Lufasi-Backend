@@ -34,19 +34,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Run deploy script
+      - name: Setup SSH
         run: |
-          # Try to find the script and run it, whether we are in the subfolder or root
-          if [ -f "scripts/deploy.sh" ]; then
-            bash scripts/deploy.sh
-          elif [ -f "Lufasi-Backend/scripts/deploy.sh" ]; then
-            cd Lufasi-Backend && bash scripts/deploy.sh
-          else
-            echo "Error: scripts/deploy.sh not found in root or Lufasi-Backend folder"
-            ls -R
-            exit 1
-          fi
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          DO_HOST: ${{ secrets.DO_HOST }}
-          DO_USER: ${{ secrets.DO_USER }}
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          eval "$(ssh-agent -s)"
+          ssh-add ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ secrets.DO_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to DigitalOcean
+        run: |
+          ssh -tt -o StrictHostKeyChecking=no ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }} \
+          "/home/deploy/apps/Lufasi-Backend/deploy_backend.sh"

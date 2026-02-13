@@ -12,7 +12,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup Node.js
@@ -22,15 +22,30 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          if [ -d "Lufasi-Backend" ]; then cd Lufasi-Backend; fi
+          npm ci
 
   deploy:
     needs: build
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Run deploy script
-        run: bash scripts/deploy.sh
+        run: |
+          # Try to find the script and run it, whether we are in the subfolder or root
+          if [ -f "scripts/deploy.sh" ]; then
+            bash scripts/deploy.sh
+          elif [ -f "Lufasi-Backend/scripts/deploy.sh" ]; then
+            cd Lufasi-Backend && bash scripts/deploy.sh
+          else
+            echo "Error: scripts/deploy.sh not found in root or Lufasi-Backend folder"
+            ls -R
+            exit 1
+          fi
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           DO_HOST: ${{ secrets.DO_HOST }}

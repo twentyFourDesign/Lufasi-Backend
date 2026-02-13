@@ -20,6 +20,7 @@ async function adminAuth(req, res, next) {
     if (!["admin", "staff"].includes(user.role)) {
       return res.status(403).json({ error: "Access denied. Admin/Staff only." });
     }
+    
     req.admin = user;
     next();
   } catch (err) {

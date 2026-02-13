@@ -42,7 +42,7 @@ jobs:
 
       - name: Deploy to DigitalOcean
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }} << 'EOF'
+          ssh -tt -o StrictHostKeyChecking=no ${{ secrets.DO_USER }}@${{ secrets.DO_HOST }} << 'EOF'
             cd /home/deploy/apps/Lufasi-Backend
             git pull origin main
             npm install --production

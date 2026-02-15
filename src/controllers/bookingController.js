@@ -98,14 +98,29 @@ async function createBooking(req, res, next) {
       });
     }
 
-    const priceCalc = priceCalculator({
-      pod: podRecord,
-      boardType: bookingData.boardType,
-      guests: bookingData.guests,
-      popUpBeds: bookingData.popUpBeds,
-      extras: bookingData.extras,
-      podPriceRules: podRecord.priceRules,
-    });
+    let priceCalc;
+    try {
+      priceCalc = priceCalculator({
+        pod: podRecord,
+        boardType: bookingData.boardType,
+        guests: bookingData.guests,
+        popUpBeds: bookingData.popUpBeds,
+        extras: bookingData.extras,
+        podPriceRules: podRecord.priceRules,
+      });
+    } catch (err) {
+      if (
+        err &&
+        err.message ===
+          "Pods are now exclusively available on a Full Board basis."
+      ) {
+        return res.status(400).json({ error: err.message });
+      }
+      if (err && err.statusCode === 400) {
+        return res.status(400).json({ error: err.message });
+      }
+      throw err;
+    }
 
     const checkInDate = new Date(bookingData.checkIn);
     const checkOutDate = new Date(bookingData.checkOut);
@@ -119,6 +134,30 @@ async function createBooking(req, res, next) {
 
     const totalBeforeTax = priceCalc.total * nights;
     const totalPrice = totalBeforeTax * 1.125;
+
+    const totalGuests =
+      (bookingData.guests.adults || 0) +
+      (bookingData.guests.children || 0) +
+      (bookingData.guests.toddlers || 0) +
+      (bookingData.guests.infants || 0);
+
+    const pricingBreakdown = {
+      baseRate: 400000,
+      extra_guest_charges:
+        totalGuests === 2
+          ? [
+              {
+                guest_index: 2,
+                amount: 100000,
+              },
+            ]
+          : [],
+      meal_plan: {
+        type: "Full Board",
+        cost: 0,
+        status: "MANDATORY",
+      },
+    };
 
     // Create or find guest directory
     let guestDir = await db.GuestDirectory.findOne({
@@ -224,6 +263,10 @@ async function createBooking(req, res, next) {
       bookingReference: bookingRef,
       amountDue: totalPrice,
       paymentLink,
+      room_type: podRecord.podName || "Luxury Pod",
+      guests: totalGuests,
+      pricing_breakdown: pricingBreakdown,
+      total_amount: totalPrice,
     });
   } catch (err) {
     next(err);

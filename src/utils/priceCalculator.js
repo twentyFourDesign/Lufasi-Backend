@@ -25,12 +25,6 @@ function priceCalculator({
   extras = [],
   podPriceRules = [],
 }) {
-  const adultRate = parseFloat(pod.baseAdultPrice || 0);
-
-  // Board type modifier: assume baseAdultPrice = Full Board; Half board reduces by 10% (example)
-  let boardMultiplier = 1.0;
-  if (boardType === "halfBoard") boardMultiplier = 0.9; // adapt as needed
-
   const rulesMap = {};
   (podPriceRules || []).forEach((r) => {
     rulesMap[r.guestType] = parseFloat(r.pricePercentage);
@@ -44,71 +38,118 @@ function priceCalculator({
   const toddlers = guests.toddlers || 0;
   const infants = guests.infants || 0;
 
-  // Adult
-  const adultUnit = adultRate * boardMultiplier;
-  const adultTotal = adults * adultUnit;
-  if (adults > 0) {
-    breakdown.push({
-      label: "Adult (per person)",
-      qty: adults,
-      unitPrice: adultUnit,
-      total: adultTotal,
-    });
-    subtotal += adultTotal;
+  const totalGuests = adults + children + toddlers + infants;
+
+  const isPod = true;
+
+  if (isPod) {
+    if (boardType !== "fullBoard") {
+      throw new Error(
+        "Pods are now exclusively available on a Full Board basis.",
+      );
+    }
+
+    if (totalGuests < 1) {
+      breakdown.push({
+        label: "Base occupancy (1 guest)",
+        qty: 1,
+        unitPrice: 400000,
+        total: 400000,
+      });
+      subtotal += 400000;
+    } else if (totalGuests === 1) {
+      breakdown.push({
+        label: "Base occupancy (1 guest)",
+        qty: 1,
+        unitPrice: 400000,
+        total: 400000,
+      });
+      subtotal += 400000;
+    } else if (totalGuests === 2) {
+      breakdown.push({
+        label: "Base occupancy (guest 1)",
+        qty: 1,
+        unitPrice: 400000,
+        total: 400000,
+      });
+      breakdown.push({
+        label: "Extra guest (guest 2)",
+        qty: 1,
+        unitPrice: 100000,
+        total: 100000,
+      });
+      subtotal += 500000;
+    } else {
+      const err = new Error("Maximum occupancy for Pod is 2 guests");
+      err.statusCode = 400;
+      throw err;
+    }
+  } else {
+    const adultRate = parseFloat(pod.baseAdultPrice || 0);
+
+    let boardMultiplier = 1.0;
+    if (boardType === "halfBoard") boardMultiplier = 0.9;
+
+    const adultUnit = adultRate * boardMultiplier;
+    const adultTotal = adults * adultUnit;
+    if (adults > 0) {
+      breakdown.push({
+        label: "Adult (per person)",
+        qty: adults,
+        unitPrice: adultUnit,
+        total: adultTotal,
+      });
+      subtotal += adultTotal;
+    }
+
+    const childPct = rulesMap["child"] != null ? rulesMap["child"] : 75;
+    const childUnit = adultUnit * (parseFloat(childPct) / 100.0);
+    const childTotal = children * childUnit;
+    if (children > 0) {
+      breakdown.push({
+        label: "Child (per person)",
+        qty: children,
+        unitPrice: childUnit,
+        total: childTotal,
+      });
+      subtotal += childTotal;
+    }
+
+    const toddlerPct = rulesMap["toddler"] != null ? rulesMap["toddler"] : 50;
+    const toddlerUnit = adultUnit * (parseFloat(toddlerPct) / 100.0);
+    const toddlerTotal = toddlers * toddlerUnit;
+    if (toddlers > 0) {
+      breakdown.push({
+        label: "Toddler (per person)",
+        qty: toddlers,
+        unitPrice: toddlerUnit,
+        total: toddlerTotal,
+      });
+      subtotal += toddlerTotal;
+    }
+
+    if (infants > 0) {
+      breakdown.push({
+        label: "Infant (per person)",
+        qty: infants,
+        unitPrice: 0,
+        total: 0,
+      });
+    }
+
+    if (popUpBeds > 0) {
+      const popupUnit = adultUnit;
+      const popupTotal = popUpBeds * popupUnit;
+      breakdown.push({
+        label: "Pop-up bed (per night)",
+        qty: popUpBeds,
+        unitPrice: popupUnit,
+        total: popupTotal,
+      });
+      subtotal += popupTotal;
+    }
   }
 
-  // Child (percentage of adult)
-  const childPct = rulesMap["child"] != null ? rulesMap["child"] : 75;
-  const childUnit = adultUnit * (parseFloat(childPct) / 100.0);
-  const childTotal = children * childUnit;
-  if (children > 0) {
-    breakdown.push({
-      label: "Child (per person)",
-      qty: children,
-      unitPrice: childUnit,
-      total: childTotal,
-    });
-    subtotal += childTotal;
-  }
-
-  // Toddler
-  const toddlerPct = rulesMap["toddler"] != null ? rulesMap["toddler"] : 50;
-  const toddlerUnit = adultUnit * (parseFloat(toddlerPct) / 100.0);
-  const toddlerTotal = toddlers * toddlerUnit;
-  if (toddlers > 0) {
-    breakdown.push({
-      label: "Toddler (per person)",
-      qty: toddlers,
-      unitPrice: toddlerUnit,
-      total: toddlerTotal,
-    });
-    subtotal += toddlerTotal;
-  }
-
-  // Infants (free)
-  if (infants > 0) {
-    breakdown.push({
-      label: "Infant (per person)",
-      qty: infants,
-      unitPrice: 0,
-      total: 0,
-    });
-  }
-
-  // Pop-up bed: charge as additional adult rate (or define separate)
-  if (popUpBeds > 0) {
-    const popupUnit = adultUnit;
-    const popupTotal = popUpBeds * popupUnit;
-    breakdown.push({
-      label: "Pop-up bed (per night)",
-      qty: popUpBeds,
-      unitPrice: popupUnit,
-      total: popupTotal,
-    });
-    subtotal += popupTotal;
-  }
-
-  // Extras
   let extrasTotal = 0;
   if (extras && extras.length) {
     extras.forEach((e) => {

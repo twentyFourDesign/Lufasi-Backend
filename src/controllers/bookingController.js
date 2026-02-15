@@ -107,6 +107,19 @@ async function createBooking(req, res, next) {
       podPriceRules: podRecord.priceRules,
     });
 
+    const checkInDate = new Date(bookingData.checkIn);
+    const checkOutDate = new Date(bookingData.checkOut);
+    let nights = Math.ceil(
+      (checkOutDate.getTime() - checkInDate.getTime()) /
+        (1000 * 60 * 60 * 24),
+    );
+    if (!Number.isFinite(nights) || nights < 1) {
+      nights = 1;
+    }
+
+    const totalBeforeTax = priceCalc.total * nights;
+    const totalPrice = totalBeforeTax * 1.125;
+
     // Create or find guest directory
     let guestDir = await db.GuestDirectory.findOne({
       where: { email: bookingData.contact.email },
@@ -142,7 +155,7 @@ async function createBooking(req, res, next) {
       podId: bookingData.podId,
       checkIn: bookingData.checkIn,
       checkOut: bookingData.checkOut,
-      totalPrice: priceCalc.total,
+      totalPrice,
       bookingStatus: "pending",
       boardType: bookingData.boardType,
       popUpBeds: bookingData.popUpBeds,
@@ -209,7 +222,7 @@ async function createBooking(req, res, next) {
     res.json({
       bookingId: booking.id,
       bookingReference: bookingRef,
-      amountDue: priceCalc.total,
+      amountDue: totalPrice,
       paymentLink,
     });
   } catch (err) {
@@ -466,7 +479,22 @@ async function updateBooking(req, res, next) {
           podPriceRules: podRecord.priceRules,
         });
 
-        updateData.totalPrice = priceCalc.total;
+        const checkIn =
+          dates?.checkIn != null ? dates.checkIn : existingBooking.checkIn;
+        const checkOut =
+          dates?.checkOut != null ? dates.checkOut : existingBooking.checkOut;
+        const checkInDate = new Date(checkIn);
+        const checkOutDate = new Date(checkOut);
+        let nights = Math.ceil(
+          (checkOutDate.getTime() - checkInDate.getTime()) /
+            (1000 * 60 * 60 * 24),
+        );
+        if (!Number.isFinite(nights) || nights < 1) {
+          nights = 1;
+        }
+
+        const totalBeforeTax = priceCalc.total * nights;
+        updateData.totalPrice = totalBeforeTax * 1.125;
       }
     }
 

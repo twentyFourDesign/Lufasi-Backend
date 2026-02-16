@@ -38,7 +38,9 @@ function priceCalculator({
   const toddlers = guests.toddlers || 0;
   const infants = guests.infants || 0;
 
-  const totalGuests = adults + children + toddlers + infants;
+  const primaryGuests = adults + children + toddlers;
+  const occupancyGuests =
+    primaryGuests > 0 ? primaryGuests : infants > 0 ? 1 : 0;
 
   const isPod = true;
 
@@ -49,7 +51,7 @@ function priceCalculator({
       );
     }
 
-    if (totalGuests < 1) {
+    if (occupancyGuests < 1) {
       breakdown.push({
         label: "Base occupancy (1 guest)",
         qty: 1,
@@ -57,7 +59,7 @@ function priceCalculator({
         total: 400000,
       });
       subtotal += 400000;
-    } else if (totalGuests === 1) {
+    } else if (occupancyGuests === 1) {
       breakdown.push({
         label: "Base occupancy (1 guest)",
         qty: 1,
@@ -65,7 +67,7 @@ function priceCalculator({
         total: 400000,
       });
       subtotal += 400000;
-    } else if (totalGuests === 2) {
+    } else if (occupancyGuests === 2) {
       breakdown.push({
         label: "Base occupancy (guest 1)",
         qty: 1,

@@ -14,18 +14,10 @@ function generateDatesArray(startDate, endDate) {
 
 async function checkAvailability(req, res, next) {
   try {
-    const {
-      startDate,
-      endDate,
-      adults = 1,
-      children = 0,
-      infants = 0,
-      excludeBookingId,
-    } = req.body;
+    const { startDate, endDate, excludeBookingId } = req.body;
     if (!startDate || !endDate)
       return res.status(400).json({ error: "startDate and endDate required" });
 
-    // Simple algorithm: find pods that do not have 'booked' status in that date range
     const dates = generateDatesArray(startDate, endDate);
 
     const whereClause = {
@@ -53,23 +45,9 @@ async function checkAvailability(req, res, next) {
       `Found ${pods.length} pods in database matching isDeleted filter`,
     );
 
-    // Format all pods with availability status
     const formattedPods = pods.map((pod) => {
-      // Pod is available if:
-      // 1. NOT in occupied list (no bookings/blocks for the date range)
-      // 2. Has sufficient capacity for guests
       const isOccupied = occupiedPodIds.has(pod.id);
-      const hasAdultCapacity =
-        (parseInt(adults) || 0) <= (parseInt(pod.maxAdults) || 0);
-      const hasChildrenCapacity =
-        (parseInt(children) || 0) <= (parseInt(pod.maxChildren) || 0);
-
-      const isAvailable =
-        !isOccupied && hasAdultCapacity && hasChildrenCapacity;
-
-      console.log(
-        `Pod: ${pod.podName}, ID: ${pod.id}, adults: ${adults}, podMaxAdults: ${pod.maxAdults}, children: ${children}, podMaxChildren: ${pod.maxChildren}, isOccupied: ${isOccupied}, hasAdultCap: ${hasAdultCapacity}, hasChildCap: ${hasChildrenCapacity}, isAvailable: ${isAvailable}`,
-      );
+      const isAvailable = !isOccupied;
 
       return {
         id: pod.id,

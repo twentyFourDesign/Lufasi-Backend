@@ -23,6 +23,7 @@ async function createBooking(req, res, next) {
       extras = [],
       discountCode,
       voucherCode,
+      podCount,
     } = req.body;
     const bookingData = {
       podId: podId,
@@ -50,6 +51,7 @@ async function createBooking(req, res, next) {
       popUpBeds,
       discountCode,
       voucherCode,
+      podCount: Number(podCount) || 1,
     };
 
     // Basic validations
@@ -107,6 +109,7 @@ async function createBooking(req, res, next) {
         popUpBeds: bookingData.popUpBeds,
         extras: bookingData.extras,
         podPriceRules: podRecord.priceRules,
+        pods: bookingData.podCount || 1,
       });
     } catch (err) {
       if (
@@ -125,8 +128,7 @@ async function createBooking(req, res, next) {
     const checkInDate = new Date(bookingData.checkIn);
     const checkOutDate = new Date(bookingData.checkOut);
     let nights = Math.ceil(
-      (checkOutDate.getTime() - checkInDate.getTime()) /
-        (1000 * 60 * 60 * 24),
+      (checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24),
     );
     if (!Number.isFinite(nights) || nights < 1) {
       nights = 1;
@@ -141,14 +143,34 @@ async function createBooking(req, res, next) {
       (bookingData.guests.toddlers || 0) +
       (bookingData.guests.infants || 0);
 
+    const MAX_PODS = 6;
+    const PRICE_PER_POD_SINGLE = 400000;
+    const PRICE_EXTRA_GUEST = 100000;
+
+    const podsForPricing =
+      bookingData.podCount && bookingData.podCount > 0
+        ? bookingData.podCount
+        : 1;
+    const clampedPods =
+      podsForPricing > MAX_PODS
+        ? MAX_PODS
+        : podsForPricing < 1
+          ? 1
+          : podsForPricing;
+    const extraGuestsForPricing =
+      totalGuests > clampedPods ? totalGuests - clampedPods : 0;
+
     const pricingBreakdown = {
-      baseRate: 400000,
+      baseRate: PRICE_PER_POD_SINGLE,
+      podCount: clampedPods,
+      basePodsCost: clampedPods * PRICE_PER_POD_SINGLE,
       extra_guest_charges:
-        totalGuests === 2
+        extraGuestsForPricing > 0
           ? [
               {
-                guest_index: 2,
-                amount: 100000,
+                guests: extraGuestsForPricing,
+                unitPrice: PRICE_EXTRA_GUEST,
+                total: extraGuestsForPricing * PRICE_EXTRA_GUEST,
               },
             ]
           : [],
@@ -198,6 +220,7 @@ async function createBooking(req, res, next) {
       bookingStatus: "pending",
       boardType: bookingData.boardType,
       popUpBeds: bookingData.popUpBeds,
+      podCount: bookingData.podCount,
       expiresAt: expiresAt,
     });
 
@@ -520,6 +543,7 @@ async function updateBooking(req, res, next) {
             popUpBeds !== undefined ? popUpBeds : existingBooking.popUpBeds,
           extras: extras,
           podPriceRules: podRecord.priceRules,
+          pods: existingBooking.podCount || 1,
         });
 
         const checkIn =
@@ -881,10 +905,7 @@ async function cancelBooking(req, res, next) {
     const { id } = req.params;
 
     const booking = await db.Booking.findByPk(id, {
-      include: [
-        { model: db.GuestDirectory },
-        { model: db.Pod },
-      ],
+      include: [{ model: db.GuestDirectory }, { model: db.Pod }],
       transaction: t,
     });
 
@@ -905,25 +926,40 @@ async function cancelBooking(req, res, next) {
     });
 
     // Log the cancellation
-    await db.BookingLog.create({
-      bookingId: booking.id,
-      action: "Booking cancelled by Admin",
-      oldStatus,
-      newStatus: "cancelled",
-      userAgent: req.get("user-agent"),
-      ipAddress: req.ip,
-    }, { transaction: t });
+    await db.BookingLog.create(
+      {
+        bookingId: booking.id,
+        action: "Booking cancelled by Admin",
+        oldStatus,
+        newStatus: "cancelled",
+        userAgent: req.get("user-agent"),
+        ipAddress: req.ip,
+      },
+      { transaction: t },
+    );
 
     await t.commit();
 
     // Send cancellation email asynchronously
     if (booking.GuestDirectory?.email) {
-      emailService.sendBookingCancellation(booking, booking.GuestDirectory, booking.Pod)
-        .catch(err => console.error(`Failed to send cancellation email: ${err.message}`));
-      
+      emailService
+        .sendBookingCancellation(booking, booking.GuestDirectory, booking.Pod)
+        .catch((err) =>
+          console.error(`Failed to send cancellation email: ${err.message}`),
+        );
+
       // Send admin alert
-      emailService.sendAdminCancellationAlert(booking, booking.GuestDirectory, booking.Pod)
-        .catch(err => console.error(`Failed to send admin cancellation alert: ${err.message}`));
+      emailService
+        .sendAdminCancellationAlert(
+          booking,
+          booking.GuestDirectory,
+          booking.Pod,
+        )
+        .catch((err) =>
+          console.error(
+            `Failed to send admin cancellation alert: ${err.message}`,
+          ),
+        );
     }
 
     res.json({

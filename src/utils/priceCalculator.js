@@ -24,12 +24,8 @@ function priceCalculator({
   popUpBeds = 0,
   extras = [],
   podPriceRules = [],
+  pods = 1,
 }) {
-  const rulesMap = {};
-  (podPriceRules || []).forEach((r) => {
-    rulesMap[r.guestType] = parseFloat(r.pricePercentage);
-  });
-
   const breakdown = [];
   let subtotal = 0;
 
@@ -49,36 +45,47 @@ function priceCalculator({
       );
     }
 
+    const MAX_PODS = 6;
+    const PRICE_PER_POD_SINGLE = 400000;
+    const PRICE_EXTRA_GUEST = 100000;
+
+    const podsNum = parseInt(pods, 10);
+    const podsCount = Number.isFinite(podsNum) && podsNum > 0 ? podsNum : 1;
+    const clampedPods =
+      podsCount > MAX_PODS ? MAX_PODS : podsCount < 1 ? 1 : podsCount;
+
     const effectiveGuestCount = guestCount < 1 ? 1 : guestCount;
 
-    if (effectiveGuestCount === 1) {
+    const baseCost = clampedPods * PRICE_PER_POD_SINGLE;
+    const extraGuests =
+      effectiveGuestCount > clampedPods ? effectiveGuestCount - clampedPods : 0;
+    const extraGuestCost = extraGuests * PRICE_EXTRA_GUEST;
+
+    if (clampedPods > 0) {
       breakdown.push({
-        label: "Base occupancy (1 guest)",
-        qty: 1,
-        unitPrice: 400000,
-        total: 400000,
+        label: "Pods (single occupancy)",
+        qty: clampedPods,
+        unitPrice: PRICE_PER_POD_SINGLE,
+        total: baseCost,
       });
-      subtotal += 400000;
-    } else if (effectiveGuestCount === 2) {
-      breakdown.push({
-        label: "Base occupancy (guest 1)",
-        qty: 1,
-        unitPrice: 400000,
-        total: 400000,
-      });
-      breakdown.push({
-        label: "Extra guest (guest 2)",
-        qty: 1,
-        unitPrice: 100000,
-        total: 100000,
-      });
-      subtotal += 500000;
-    } else {
-      const err = new Error("Maximum occupancy for Pod is 2 guests");
-      err.statusCode = 400;
-      throw err;
     }
+
+    if (extraGuests > 0) {
+      breakdown.push({
+        label: "Extra guests sharing pods",
+        qty: extraGuests,
+        unitPrice: PRICE_EXTRA_GUEST,
+        total: extraGuestCost,
+      });
+    }
+
+    subtotal += baseCost + extraGuestCost;
   } else {
+    const rulesMap = {};
+    (podPriceRules || []).forEach((r) => {
+      rulesMap[r.guestType] = parseFloat(r.pricePercentage);
+    });
+
     const adultRate = parseFloat(pod.baseAdultPrice || 0);
 
     let boardMultiplier = 1.0;

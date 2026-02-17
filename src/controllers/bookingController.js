@@ -316,6 +316,12 @@ async function createBooking(req, res, next) {
       priceSnapshotBase: baseForStay,
       priceSnapshotExtra: extraForStay,
       calculatedTotal,
+      configBasePricePerPod: Number(pricingConfig.basePricePerPod),
+      configExtraGuestFee: Number(pricingConfig.extraGuestFee),
+      configMaxGuestsPerPod: pricingConfig.maxGuestsPerPod,
+      configMinGuestsPerPod: pricingConfig.minGuestsPerPod,
+      configTotalPodsAvailable: pricingConfig.totalPodsAvailable,
+      configCurrency: pricingConfig.currency,
       expiresAt: expiresAt,
     });
 

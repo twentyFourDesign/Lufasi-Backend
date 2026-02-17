@@ -27,7 +27,7 @@ module.exports = (sequelize) => {
           "confirmed",
           "expired",
           "confirmed_unassigned",
-          "ready_for_checkin"
+          "ready_for_checkin",
         ),
         defaultValue: "pending",
       },
@@ -61,6 +61,36 @@ module.exports = (sequelize) => {
         type: DataTypes.DECIMAL(12, 2),
         allowNull: true,
         field: "calculated_total",
+      },
+      configBasePricePerPod: {
+        type: DataTypes.DECIMAL(12, 2),
+        allowNull: true,
+        field: "config_base_price_per_pod",
+      },
+      configExtraGuestFee: {
+        type: DataTypes.DECIMAL(12, 2),
+        allowNull: true,
+        field: "config_extra_guest_fee",
+      },
+      configMaxGuestsPerPod: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        field: "config_max_guests_per_pod",
+      },
+      configMinGuestsPerPod: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        field: "config_min_guests_per_pod",
+      },
+      configTotalPodsAvailable: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        field: "config_total_pods_available",
+      },
+      configCurrency: {
+        type: DataTypes.STRING(10),
+        allowNull: true,
+        field: "config_currency",
       },
       expiresAt: { type: DataTypes.DATE, allowNull: true },
     },

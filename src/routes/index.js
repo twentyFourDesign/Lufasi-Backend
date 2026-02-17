@@ -9,6 +9,7 @@ const discountRoutes = require("./discounts");
 const paymentRoutes = require("./payments");
 const adminRoutes = require("./admin");
 const uploadRoutes = require("./uploads");
+const configRoutes = require("./config");
 
 function registerRoutes(app) {
     // Public routes
@@ -21,6 +22,7 @@ function registerRoutes(app) {
     app.use("/discounts", discountRoutes);
     app.use("/payments", paymentRoutes);
     app.use("/uploads", uploadRoutes);
+    app.use("/config", configRoutes);
 
     // Admin protected routes
     app.use("/admin", adminRoutes);
@@ -38,4 +40,5 @@ module.exports = {
     paymentRoutes,
     adminRoutes,
     uploadRoutes,
+    configRoutes,
 };

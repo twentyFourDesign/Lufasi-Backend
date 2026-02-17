@@ -27,6 +27,7 @@ db.BookingExtra = require("./bookingExtra")(sequelize, Sequelize);
 db.MealPlan = require("./mealPlan")(sequelize, Sequelize);
 db.GuestDirectory = require("./guestDirectory")(sequelize, Sequelize);
 db.PaymentToken = require("./paymentToken")(sequelize, Sequelize);
+db.PricingConfiguration = require("./pricingConfiguration")(sequelize, Sequelize);
 
 // Associations
 db.Property.hasMany(db.Pod, { foreignKey: "propertyId" });

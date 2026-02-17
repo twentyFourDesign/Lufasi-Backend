@@ -10,6 +10,82 @@ function genRef() {
   return `LUF-${random}`;
 }
 
+async function getPricingConfigOrDefault() {
+  const config = await db.PricingConfiguration.findByPk(1);
+  if (!config) {
+    return {
+      id: 1,
+      basePricePerPod: 400000,
+      extraGuestFee: 100000,
+      maxGuestsPerPod: 2,
+      minGuestsPerPod: 1,
+      totalPodsAvailable: 6,
+      currency: "NGN",
+    };
+  }
+  return config;
+}
+
+function calculateBaseAndExtraForStay({
+  guestsCount,
+  podsCount,
+  nights,
+  config,
+}) {
+  const totalGuests = guestsCount < 1 ? 1 : guestsCount;
+  const pods = podsCount < 1 ? 1 : podsCount;
+
+  const basePricePerPod = Number(config.basePricePerPod || 400000);
+  const extraGuestFee = Number(config.extraGuestFee || 100000);
+
+  const basePerNight = pods * basePricePerPod;
+  const extraGuests = totalGuests > pods ? totalGuests - pods : 0;
+  const extraPerNight = extraGuests * extraGuestFee;
+
+  const baseForStay = basePerNight * nights;
+  const extraForStay = extraPerNight * nights;
+
+  return {
+    baseForStay,
+    extraForStay,
+    extraGuests,
+  };
+}
+
+async function hasPodCapacity({ checkIn, checkOut, podsRequested, config }) {
+  const totalPodsAvailable = config.totalPodsAvailable || 6;
+
+  const start = new Date(checkIn);
+  const end = new Date(checkOut);
+
+  if (!(start instanceof Date) || !(end instanceof Date) || !(start < end)) {
+    return false;
+  }
+
+  const bookings = await db.Booking.findAll({
+    where: {
+      bookingStatus: {
+        [db.Sequelize.Op.in]: [
+          "pending",
+          "paid",
+          "confirmed",
+          "confirmed_unassigned",
+          "ready_for_checkin",
+        ],
+      },
+      checkIn: { [db.Sequelize.Op.lt]: end },
+      checkOut: { [db.Sequelize.Op.gt]: start },
+    },
+  });
+
+  const usedPods = bookings.reduce((sum, b) => {
+    const podsCount = b.podsCount || b.podCount || 1;
+    return sum + podsCount;
+  }, 0);
+
+  return usedPods + podsRequested <= totalPodsAvailable;
+}
+
 // Create booking (public)
 async function createBooking(req, res, next) {
   try {
@@ -100,30 +176,13 @@ async function createBooking(req, res, next) {
       });
     }
 
-    let priceCalc;
-    try {
-      priceCalc = priceCalculator({
-        pod: podRecord,
-        boardType: bookingData.boardType,
-        guests: bookingData.guests,
-        popUpBeds: bookingData.popUpBeds,
-        extras: bookingData.extras,
-        podPriceRules: podRecord.priceRules,
-        pods: bookingData.podCount || 1,
+    if (bookingData.boardType !== "fullBoard") {
+      return res.status(400).json({
+        error: "Pods are now exclusively available on a Full Board basis.",
       });
-    } catch (err) {
-      if (
-        err &&
-        err.message ===
-          "Pods are now exclusively available on a Full Board basis."
-      ) {
-        return res.status(400).json({ error: err.message });
-      }
-      if (err && err.statusCode === 400) {
-        return res.status(400).json({ error: err.message });
-      }
-      throw err;
     }
+
+    const pricingConfig = await getPricingConfigOrDefault();
 
     const checkInDate = new Date(bookingData.checkIn);
     const checkOutDate = new Date(bookingData.checkOut);
@@ -134,43 +193,74 @@ async function createBooking(req, res, next) {
       nights = 1;
     }
 
-    const totalBeforeTax = priceCalc.total * nights;
-    const totalPrice = totalBeforeTax * 1.125;
-
     const totalGuests =
       (bookingData.guests.adults || 0) +
       (bookingData.guests.children || 0) +
       (bookingData.guests.toddlers || 0) +
       (bookingData.guests.infants || 0);
+    const podsRequested = bookingData.podCount || 1;
 
-    const MAX_PODS = 6;
-    const PRICE_PER_POD_SINGLE = 400000;
-    const PRICE_EXTRA_GUEST = 100000;
+    if (totalGuests < podsRequested) {
+      return res.status(400).json({
+        error: "Guests count must be at least equal to pods count.",
+      });
+    }
 
-    const podsForPricing =
-      bookingData.podCount && bookingData.podCount > 0
-        ? bookingData.podCount
-        : 1;
-    const clampedPods =
-      podsForPricing > MAX_PODS
-        ? MAX_PODS
-        : podsForPricing < 1
-          ? 1
-          : podsForPricing;
-    const extraGuestsForPricing =
-      totalGuests > clampedPods ? totalGuests - clampedPods : 0;
+    if (totalGuests > podsRequested * (pricingConfig.maxGuestsPerPod || 2)) {
+      return res.status(400).json({
+        error:
+          "Guests count exceeds maximum allowed for the requested number of pods.",
+      });
+    }
+
+    if (totalGuests < (pricingConfig.minGuestsPerPod || 1)) {
+      return res.status(400).json({
+        error: "Guests count is below the minimum allowed per booking.",
+      });
+    }
+
+    if (podsRequested > (pricingConfig.totalPodsAvailable || 6)) {
+      return res.status(400).json({
+        error: "Requested pods count exceeds total pods available.",
+      });
+    }
+
+    const capacityOk = await hasPodCapacity({
+      checkIn: bookingData.checkIn,
+      checkOut: bookingData.checkOut,
+      podsRequested,
+      config: pricingConfig,
+    });
+
+    if (!capacityOk) {
+      return res.status(400).json({
+        error: "Not enough pods available for the selected dates.",
+      });
+    }
+
+    const { baseForStay, extraForStay, extraGuests } =
+      calculateBaseAndExtraForStay({
+        guestsCount: totalGuests,
+        podsCount: podsRequested,
+        nights,
+        config: pricingConfig,
+      });
+
+    const calculatedTotal = baseForStay + extraForStay;
+    const totalBeforeTax = calculatedTotal;
+    const totalPrice = totalBeforeTax * 1.125;
 
     const pricingBreakdown = {
-      baseRate: PRICE_PER_POD_SINGLE,
-      podCount: clampedPods,
-      basePodsCost: clampedPods * PRICE_PER_POD_SINGLE,
+      baseRate: Number(pricingConfig.basePricePerPod),
+      podCount: podsRequested,
+      basePodsCost: baseForStay,
       extra_guest_charges:
-        extraGuestsForPricing > 0
+        extraGuests > 0
           ? [
               {
-                guests: extraGuestsForPricing,
-                unitPrice: PRICE_EXTRA_GUEST,
-                total: extraGuestsForPricing * PRICE_EXTRA_GUEST,
+                guests: extraGuests,
+                unitPrice: Number(pricingConfig.extraGuestFee),
+                total: extraForStay,
               },
             ]
           : [],
@@ -221,6 +311,11 @@ async function createBooking(req, res, next) {
       boardType: bookingData.boardType,
       popUpBeds: bookingData.popUpBeds,
       podCount: bookingData.podCount,
+      guestsCount: totalGuests,
+      podsCount: podsRequested,
+      priceSnapshotBase: baseForStay,
+      priceSnapshotExtra: extraForStay,
+      calculatedTotal,
       expiresAt: expiresAt,
     });
 

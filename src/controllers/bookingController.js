@@ -308,7 +308,7 @@ async function createBooking(req, res, next) {
       checkOut: bookingData.checkOut,
       totalPrice,
       bookingStatus: "pending",
-      boardType: bookingData.boardType,
+      boardType: bookingData.boardType || "fullBoard",
       popUpBeds: bookingData.popUpBeds,
       podCount: bookingData.podCount,
       guestsCount: totalGuests,
@@ -322,6 +322,7 @@ async function createBooking(req, res, next) {
       configMinGuestsPerPod: pricingConfig.minGuestsPerPod,
       configTotalPodsAvailable: pricingConfig.totalPodsAvailable,
       configCurrency: pricingConfig.currency,
+      bedConfiguration: bookingData.bedConfiguration,
       expiresAt: expiresAt,
     });
 

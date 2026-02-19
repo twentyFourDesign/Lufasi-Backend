@@ -92,6 +92,11 @@ module.exports = (sequelize) => {
         allowNull: true,
         field: "config_currency",
       },
+      bedConfiguration: {
+        type: DataTypes.STRING(100),
+        allowNull: true,
+        field: "bed_configuration",
+      },
       expiresAt: { type: DataTypes.DATE, allowNull: true },
     },
     { tableName: "bookings" },

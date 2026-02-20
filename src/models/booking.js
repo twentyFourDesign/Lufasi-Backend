@@ -97,6 +97,18 @@ module.exports = (sequelize) => {
         allowNull: true,
         field: "bed_configuration",
       },
+      twelveGuestDiscountApplied: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+        field: "twelve_guest_discount_applied",
+      },
+      twelveGuestDiscountAmount: {
+        type: DataTypes.DECIMAL(12, 2),
+        allowNull: false,
+        defaultValue: 0,
+        field: "twelve_guest_discount_amount",
+      },
       expiresAt: { type: DataTypes.DATE, allowNull: true },
     },
     { tableName: "bookings" },

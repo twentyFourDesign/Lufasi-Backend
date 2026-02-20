@@ -193,11 +193,13 @@ async function createBooking(req, res, next) {
       nights = 1;
     }
 
+    const guestCounts = bookingData.guests || {};
     const totalGuests =
-      (bookingData.guests.adults || 0) +
-      (bookingData.guests.children || 0) +
-      (bookingData.guests.toddlers || 0) +
-      (bookingData.guests.infants || 0);
+      (guestCounts.adults || 0) +
+      (guestCounts.teenagers || 0) +
+      (guestCounts.children || 0) +
+      (guestCounts.toddlers || 0) +
+      (guestCounts.infants || 0);
     const podsRequested = bookingData.podCount || 1;
 
     if (totalGuests < podsRequested) {
@@ -246,7 +248,19 @@ async function createBooking(req, res, next) {
         config: pricingConfig,
       });
 
-    const calculatedTotal = baseForStay + extraForStay;
+    let calculatedTotal = baseForStay + extraForStay;
+
+    let twelveGuestDiscountApplied = false;
+    let twelveGuestDiscountAmount = 0;
+
+    if (totalGuests === 12) {
+      twelveGuestDiscountApplied = true;
+      twelveGuestDiscountAmount = Number(
+        (Number(baseForStay) * 0.1).toFixed(2),
+      );
+      calculatedTotal = calculatedTotal - twelveGuestDiscountAmount;
+    }
+
     const totalBeforeTax = calculatedTotal;
     const totalPrice = totalBeforeTax * 1.125;
 
@@ -268,6 +282,11 @@ async function createBooking(req, res, next) {
         type: "Full Board",
         cost: 0,
         status: "MANDATORY",
+      },
+      twelve_guest_discount: {
+        applied: twelveGuestDiscountApplied,
+        percent: 10,
+        amount: twelveGuestDiscountAmount,
       },
     };
 
@@ -323,6 +342,8 @@ async function createBooking(req, res, next) {
       configTotalPodsAvailable: pricingConfig.totalPodsAvailable,
       configCurrency: pricingConfig.currency,
       bedConfiguration: bookingData.bedConfiguration,
+      twelveGuestDiscountApplied,
+      twelveGuestDiscountAmount,
       expiresAt: expiresAt,
     });
 

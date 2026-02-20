@@ -20,6 +20,7 @@ async function getPricingConfigOrDefault() {
       maxGuestsPerPod: 2,
       minGuestsPerPod: 1,
       totalPodsAvailable: 6,
+      twelveGuestDiscountPercent: 10,
       currency: "NGN",
     };
   }
@@ -254,9 +255,14 @@ async function createBooking(req, res, next) {
     let twelveGuestDiscountAmount = 0;
 
     if (totalGuests === 12) {
+      const configuredDiscountPercent =
+        pricingConfig.twelveGuestDiscountPercent != null
+          ? Number(pricingConfig.twelveGuestDiscountPercent)
+          : 10;
+      const percentAsDecimal = configuredDiscountPercent / 100;
       twelveGuestDiscountApplied = true;
       twelveGuestDiscountAmount = Number(
-        (Number(baseForStay) * 0.1).toFixed(2),
+        (Number(baseForStay) * percentAsDecimal).toFixed(2),
       );
       calculatedTotal = calculatedTotal - twelveGuestDiscountAmount;
     }
@@ -285,7 +291,10 @@ async function createBooking(req, res, next) {
       },
       twelve_guest_discount: {
         applied: twelveGuestDiscountApplied,
-        percent: 10,
+        percent:
+          pricingConfig.twelveGuestDiscountPercent != null
+            ? Number(pricingConfig.twelveGuestDiscountPercent)
+            : 10,
         amount: twelveGuestDiscountAmount,
       },
     };

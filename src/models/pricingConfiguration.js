@@ -33,6 +33,11 @@ module.exports = (sequelize) => {
         allowNull: false,
         field: "total_pods_available",
       },
+      twelveGuestDiscountPercent: {
+        type: DataTypes.DECIMAL(5, 2),
+        allowNull: true,
+        field: "twelve_guest_discount_percent",
+      },
       currency: {
         type: DataTypes.STRING(10),
         allowNull: false,
@@ -43,4 +48,3 @@ module.exports = (sequelize) => {
     },
   );
 };
-

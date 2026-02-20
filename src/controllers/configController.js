@@ -12,6 +12,7 @@ async function getPricingConfiguration(req, res, next) {
         maxGuestsPerPod: 2,
         minGuestsPerPod: 1,
         totalPodsAvailable: 6,
+        twelveGuestDiscountPercent: 10,
         currency: "NGN",
       };
     }
@@ -23,6 +24,10 @@ async function getPricingConfiguration(req, res, next) {
       max_guests_per_pod: config.maxGuestsPerPod,
       min_guests_per_pod: config.minGuestsPerPod,
       total_pods_available: config.totalPodsAvailable,
+      twelve_guest_discount_percent:
+        config.twelveGuestDiscountPercent != null
+          ? Number(config.twelveGuestDiscountPercent)
+          : 10,
       currency: config.currency,
     });
   } catch (err) {
@@ -38,6 +43,7 @@ async function updatePricingConfiguration(req, res, next) {
       max_guests_per_pod,
       min_guests_per_pod,
       total_pods_available,
+      twelve_guest_discount_percent,
       currency,
     } = req.body;
 
@@ -51,6 +57,7 @@ async function updatePricingConfiguration(req, res, next) {
         maxGuestsPerPod: max_guests_per_pod,
         minGuestsPerPod: min_guests_per_pod,
         totalPodsAvailable: total_pods_available,
+        twelveGuestDiscountPercent: twelve_guest_discount_percent,
         currency,
       });
     } else {
@@ -59,6 +66,7 @@ async function updatePricingConfiguration(req, res, next) {
       config.maxGuestsPerPod = max_guests_per_pod;
       config.minGuestsPerPod = min_guests_per_pod;
       config.totalPodsAvailable = total_pods_available;
+      config.twelveGuestDiscountPercent = twelve_guest_discount_percent;
       config.currency = currency;
       await config.save();
     }
@@ -70,6 +78,10 @@ async function updatePricingConfiguration(req, res, next) {
       max_guests_per_pod: config.maxGuestsPerPod,
       min_guests_per_pod: config.minGuestsPerPod,
       total_pods_available: config.totalPodsAvailable,
+      twelve_guest_discount_percent:
+        config.twelveGuestDiscountPercent != null
+          ? Number(config.twelveGuestDiscountPercent)
+          : 10,
       currency: config.currency,
     });
   } catch (err) {

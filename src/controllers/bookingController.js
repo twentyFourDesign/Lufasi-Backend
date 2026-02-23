@@ -3,6 +3,7 @@ const db = require("../models");
 const { v4: uuidv4 } = require("uuid");
 const { priceCalculator } = require("../utils/priceCalculator");
 const emailService = require("../services/emailService");
+const uploadService = require("../services/uploadService");
 
 // Helper to generate booking reference
 function genRef() {
@@ -90,18 +91,43 @@ async function hasPodCapacity({ checkIn, checkOut, podsRequested, config }) {
 // Create booking (public)
 async function createBooking(req, res, next) {
   try {
+    console.log("[createBooking] Incoming booking request", {
+      hasPayloadField: !!req.body?.payload,
+      hasFile: !!req.file,
+      fileInfo: req.file
+        ? {
+            fieldname: req.file.fieldname,
+            originalname: req.file.originalname,
+            mimetype: req.file.mimetype,
+            size: req.file.size,
+            path: req.file.path,
+          }
+        : null,
+    });
+
+    let payload = req.body;
+    if (req.body && req.body.payload) {
+      try {
+        payload = JSON.parse(req.body.payload);
+      } catch (e) {
+        return res
+          .status(400)
+          .json({ error: "Invalid payload format. Expected JSON string." });
+      }
+    }
+
     const {
-      dates, // { checkIn, checkOut }
+      dates,
       contact,
       podId,
       boardType = "fullBoard",
-      guests, // { adults, teenagers, infants }
+      guests,
       popUpBeds = 0,
       extras = [],
       discountCode,
       voucherCode,
       podCount,
-    } = req.body;
+    } = payload;
     const bookingData = {
       podId: podId,
       checkIn: dates?.checkIn,
@@ -328,6 +354,29 @@ async function createBooking(req, res, next) {
     const bookingRef = genRef();
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
 
+    let identificationImageUrl = null;
+    if (req.file) {
+      try {
+        const uploadResult = await uploadService.uploadToCloudinary(
+          req.file.path,
+          {
+            folder: "lufasi/identifications",
+            resource_type: "auto",
+          },
+        );
+        identificationImageUrl = uploadResult.secure_url || uploadResult.url;
+        console.log("[createBooking] Identification uploaded to Cloudinary", {
+          identificationImageUrl,
+          public_id: uploadResult.public_id,
+        });
+      } catch (err) {
+        console.error(
+          "Failed to upload identification document to Cloudinary:",
+          err,
+        );
+      }
+    }
+
     const booking = await db.Booking.create({
       bookingReference: bookingRef,
       guestDirectoryId: guestDir.id,
@@ -343,6 +392,7 @@ async function createBooking(req, res, next) {
       podsCount: podsRequested,
       priceSnapshotBase: baseForStay,
       priceSnapshotExtra: extraForStay,
+      identificationImageUrl,
       calculatedTotal,
       configBasePricePerPod: Number(pricingConfig.basePricePerPod),
       configExtraGuestFee: Number(pricingConfig.extraGuestFee),
@@ -354,6 +404,12 @@ async function createBooking(req, res, next) {
       twelveGuestDiscountApplied,
       twelveGuestDiscountAmount,
       expiresAt: expiresAt,
+    });
+
+    console.log("[createBooking] Booking created", {
+      bookingId: booking.id,
+      bookingReference: bookingRef,
+      identificationImageUrl,
     });
 
     // booking guests

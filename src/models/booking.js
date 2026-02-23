@@ -57,6 +57,11 @@ module.exports = (sequelize) => {
         allowNull: true,
         field: "price_snapshot_extra",
       },
+      identificationImageUrl: {
+        type: DataTypes.STRING(500),
+        allowNull: true,
+        field: "identification_image_url",
+      },
       calculatedTotal: {
         type: DataTypes.DECIMAL(12, 2),
         allowNull: true,

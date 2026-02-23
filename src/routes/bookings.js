@@ -2,8 +2,13 @@ const express = require("express");
 const router = express.Router();
 const bookingController = require("../controllers/bookingController");
 const { adminAuth } = require("../middleware/auth");
+const uploadService = require("../services/uploadService");
 
-router.post("/", bookingController.createBooking); // public booking creation
+router.post(
+  "/",
+  uploadService.uploaders.identification.single("identification"),
+  bookingController.createBooking,
+); // public booking creation
 router.post("/find", bookingController.findBooking); // find booking by reference
 router.put("/:id", bookingController.updateBooking); // update booking
 router.get("/admin", adminAuth, bookingController.listBookings);

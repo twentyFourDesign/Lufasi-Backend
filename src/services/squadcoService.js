@@ -15,6 +15,9 @@ class SquadcoService {
     }
 
     async initializeTransaction({ email, amount, reference, metadata = {}, customerName = "" }) {
+        console.log(`[DEBUG] Initializing SquadCo Transaction:`);
+        console.log(`  - URL: ${this.config.baseUrl}${this.config.endpoints.initialize}`);
+        console.log(`  - Secret Key Prefix: ${this.config.secretKey ? this.config.secretKey.substring(0, 10) + "..." : "EMPTY"}`);
         try {
             // SquadCo uses Naira directly (not kobo), amount should be in kobo
             const amountInKobo = Math.round(amount * 100);

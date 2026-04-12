@@ -27,7 +27,7 @@ const paymentConfig = {
     apiKey: process.env.SQUADCO_API_KEY || "",
     secretKey: process.env.SQUADCO_SECRET_KEY || "",
     // Use sandbox URL for testing, production URL for live
-    baseUrl: process.env.SQUADCO_BASE_URL || "https://sandbox-api-d.squadco.com",
+    baseUrl: process.env.SQUADCO_BASE_URL || "https://api-d.squadco.com",
     endpoints: {
       initialize: "/transaction/initiate",
       verify: "/transaction/verify",

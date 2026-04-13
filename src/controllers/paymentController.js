@@ -1062,11 +1062,16 @@ async function payWithToken(req, res, next) {
     }
 
     if (!result.success) {
+      const errDetail = typeof result.error === "object"
+        ? JSON.stringify(result.error)
+        : (result.error || result.message || "Unknown error");
+      console.error("[payWithToken] Squad init failed:", errDetail);
       return res.status(500).send(`
         <html>
           <body style="font-family: Arial; padding: 40px; text-align: center;">
             <h2>❌ Payment Error</h2>
             <p>${result.message || "Failed to initialize payment"}</p>
+            <p style="font-size:12px;color:#888;">${errDetail}</p>
             <p><a href="javascript:history.back()">Try Again</a></p>
           </body>
         </html>

@@ -15,9 +15,11 @@ class SquadcoService {
     }
 
     async initializeTransaction({ email, amount, reference, metadata = {}, customerName = "" }) {
-        console.log(`[DEBUG] Initializing SquadCo Transaction:`);
+        console.log(`[SquadCo] Initializing transaction`);
         console.log(`  - URL: ${this.config.baseUrl}${this.config.endpoints.initialize}`);
-        console.log(`  - Secret Key Prefix: ${this.config.secretKey ? this.config.secretKey.substring(0, 10) + "..." : "EMPTY"}`);
+        console.log(`  - Secret Key Prefix: ${this.config.secretKey ? this.config.secretKey.substring(0, 15) + "..." : "EMPTY"}`);
+        console.log(`  - Amount (kobo): ${Math.round(amount * 100)}`);
+        console.log(`  - Email: ${email}`);
         try {
             // SquadCo uses Naira directly (not kobo), amount should be in kobo
             const amountInKobo = Math.round(amount * 100);
@@ -55,10 +57,17 @@ class SquadcoService {
                 message: response.data.message || "Failed to initialize transaction",
             };
         } catch (error) {
-            console.error("SquadCo Initialize Error:", error.response?.data || error.message);
+            console.error("[SquadCo] Initialize Error - Status:", error.response?.status);
+            console.error("[SquadCo] Initialize Error - Full response:", JSON.stringify(error.response?.data, null, 2));
+            console.error("[SquadCo] Request URL:", `${this.config.baseUrl}${this.config.endpoints.initialize}`);
+            console.error("[SquadCo] Secret Key prefix:", this.config.secretKey ? this.config.secretKey.substring(0, 15) : "EMPTY");
+            const errMsg = error.response?.data?.message
+                || (typeof error.response?.data === "string" ? error.response.data : null)
+                || error.message
+                || "Payment initialization failed";
             return {
                 success: false,
-                message: error.response?.data?.message || "Payment initialization failed",
+                message: errMsg,
                 error: error.response?.data || error.message,
             };
         }

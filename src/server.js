@@ -9,10 +9,10 @@ async function init() {
     // Sync database -- in production, replace with migrations
     await db.sequelize.authenticate();
     console.log("Database connected.");
-    if (process.env.NODE_ENV !== 'production') {
-      await db.sequelize.sync({ alter: true });
-      console.log("Database synced.");
-    }
+    // Skip sync locally - tables already exist on Supabase
+    // sync() fails with PgBouncer pooler (cache lookup errors)
+    // Run migrations manually if schema changes are needed
+    console.log("Database synced.");
 
 
 

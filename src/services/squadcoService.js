@@ -4,24 +4,46 @@ const paymentConfig = require("../config/paymentConfig");
 
 class SquadcoService {
     constructor() {
-        this.config = paymentConfig.squadco;
-        this.client = axios.create({
-            baseURL: this.config.baseUrl,
+        // Config is read lazily per-request so env vars are always current
+    }
+
+    _getConfig() {
+        return paymentConfig.squadco;
+    }
+
+    _getClient() {
+        const config = this._getConfig();
+        return axios.create({
+            baseURL: config.baseUrl,
             headers: {
-                Authorization: `Bearer ${this.config.secretKey}`,
+                Authorization: `Bearer ${config.secretKey}`,
                 "Content-Type": "application/json",
             },
         });
     }
 
     async initializeTransaction({ email, amount, reference, metadata = {}, customerName = "" }) {
+        const config = this._getConfig();
+        const client = this._getClient();
+
         console.log(`[SquadCo] Initializing transaction`);
-        console.log(`  - URL: ${this.config.baseUrl}${this.config.endpoints.initialize}`);
-        console.log(`  - Secret Key Prefix: ${this.config.secretKey ? this.config.secretKey.substring(0, 15) + "..." : "EMPTY"}`);
-        console.log(`  - Amount (kobo): ${Math.round(amount * 100)}`);
-        console.log(`  - Email: ${email}`);
+        console.log(`  - Base URL:     ${config.baseUrl}`);
+        console.log(`  - Endpoint:     ${config.endpoints.initialize}`);
+        console.log(`  - Secret Key:   ${config.secretKey ? config.secretKey.substring(0, 15) + "..." : "*** EMPTY - CHECK SQUADCO_SECRET_KEY ENV VAR ***"}`);
+        console.log(`  - Amount (kobo):${Math.round(amount * 100)}`);
+        console.log(`  - Email:        ${email}`);
+        console.log(`  - Callback URL: ${config.callbackUrl}`);
+
+        if (!config.secretKey) {
+            console.error("[SquadCo] FATAL: SQUADCO_SECRET_KEY is not set!");
+            return {
+                success: false,
+                message: "Payment configuration error: Squad API key is missing. Check SQUADCO_SECRET_KEY env var.",
+                error: "Missing SQUADCO_SECRET_KEY",
+            };
+        }
+
         try {
-            // SquadCo uses Naira directly (not kobo), amount should be in kobo
             const amountInKobo = Math.round(amount * 100);
 
             const payload = {
@@ -30,19 +52,18 @@ class SquadcoService {
                 initiate_type: "inline",
                 transaction_ref: reference,
                 currency: paymentConfig.currency,
-                callback_url: this.config.callbackUrl,
+                callback_url: config.callbackUrl,
                 customer_name: customerName,
-                metadata: {
-                    ...metadata,
-                },
+                metadata: { ...metadata },
             };
 
-            const response = await this.client.post(
-                this.config.endpoints.initialize,
-                payload
-            );
+            console.log(`[SquadCo] Sending payload:`, JSON.stringify(payload, null, 2));
 
-            // SquadCo returns success in different format
+            const response = await client.post(config.endpoints.initialize, payload);
+
+            console.log(`[SquadCo] Response status: ${response.status}`);
+            console.log(`[SquadCo] Response data:`, JSON.stringify(response.data, null, 2));
+
             if (response.data.success || response.data.status === 200) {
                 return {
                     success: true,
@@ -55,16 +76,17 @@ class SquadcoService {
             return {
                 success: false,
                 message: response.data.message || "Failed to initialize transaction",
+                error: response.data,
             };
         } catch (error) {
-            console.error("[SquadCo] Initialize Error - Status:", error.response?.status);
-            console.error("[SquadCo] Initialize Error - Full response:", JSON.stringify(error.response?.data, null, 2));
-            console.error("[SquadCo] Request URL:", `${this.config.baseUrl}${this.config.endpoints.initialize}`);
-            console.error("[SquadCo] Secret Key prefix:", this.config.secretKey ? this.config.secretKey.substring(0, 15) : "EMPTY");
-            const errMsg = error.response?.data?.message
-                || (typeof error.response?.data === "string" ? error.response.data : null)
-                || error.message
-                || "Payment initialization failed";
+            console.error("[SquadCo] Initialize Error - HTTP Status:", error.response?.status);
+            console.error("[SquadCo] Initialize Error - Body:", JSON.stringify(error.response?.data, null, 2));
+            console.error("[SquadCo] Initialize Error - Network/other:", error.message);
+            const errMsg =
+                error.response?.data?.message ||
+                (typeof error.response?.data === "string" ? error.response.data : null) ||
+                error.message ||
+                "Payment initialization failed";
             return {
                 success: false,
                 message: errMsg,
@@ -72,16 +94,16 @@ class SquadcoService {
             };
         }
     }
+
     async verifyTransaction(reference) {
+        const config = this._getConfig();
+        const client = this._getClient();
         try {
-            const response = await this.client.get(
-                `${this.config.endpoints.verify}/${reference}`
-            );
+            const response = await client.get(`${config.endpoints.verify}/${reference}`);
 
             if (response.data.success || response.data.status === 200) {
                 const data = response.data.data;
 
-                // Map SquadCo status to standard format
                 let status = "pending";
                 if (data.transaction_status === "success" || data.transaction_status === "Success") {
                     status = "success";
@@ -94,7 +116,7 @@ class SquadcoService {
                 return {
                     success: true,
                     status,
-                    amount: data.transaction_amount / 100, // Convert back to Naira
+                    amount: data.transaction_amount / 100,
                     reference: data.transaction_ref,
                     gatewayResponse: data.gateway_response || data.transaction_status,
                     paidAt: data.transaction_datetime,
@@ -124,13 +146,13 @@ class SquadcoService {
     }
 
     verifyWebhookSignature(signature, body) {
+        const config = this._getConfig();
         try {
             const bodyString = typeof body === "string" ? body : JSON.stringify(body);
             const hash = crypto
-                .createHmac("sha512", this.config.secretKey)
+                .createHmac("sha512", config.secretKey)
                 .update(bodyString)
                 .digest("hex");
-
             return hash.toUpperCase() === signature.toUpperCase();
         } catch (error) {
             console.error("Webhook signature verification error:", error);
@@ -139,10 +161,8 @@ class SquadcoService {
     }
 
     parseWebhookEvent(body) {
-        // SquadCo webhook format
         const data = body.Body || body;
 
-        // Map event type
         let event = "unknown";
         if (data.transaction_status === "Success" || data.transaction_status === "success") {
             event = "charge.success";

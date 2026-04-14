@@ -13,10 +13,12 @@ class SquadcoService {
 
     _getClient() {
         const config = this._getConfig();
+        const secretKey = (config.secretKey || "").trim();
+        const baseUrl = (config.baseUrl || "https://api-d.squadco.com").trim().replace(/\/+$/, "");
         return axios.create({
-            baseURL: config.baseUrl,
+            baseURL: baseUrl,
             headers: {
-                Authorization: `Bearer ${config.secretKey}`,
+                Authorization: `Bearer ${secretKey}`,
                 "Content-Type": "application/json",
             },
         });

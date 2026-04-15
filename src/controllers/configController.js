@@ -89,7 +89,62 @@ async function updatePricingConfiguration(req, res, next) {
   }
 }
 
+async function getSchoolHolidays(req, res, next) {
+  try {
+    const holidays = await db.SchoolHoliday.findAll({
+      order: [["startDate", "ASC"]],
+    });
+    res.json(holidays);
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function createSchoolHoliday(req, res, next) {
+  try {
+    const { name, startDate, endDate } = req.body;
+    if (!name || !startDate || !endDate) {
+      return res.status(400).json({ error: "Name, startDate, and endDate are required" });
+    }
+    const holiday = await db.SchoolHoliday.create({ name, startDate, endDate });
+    res.status(201).json(holiday);
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function updateSchoolHoliday(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { name, startDate, endDate } = req.body;
+    const holiday = await db.SchoolHoliday.findByPk(id);
+    if (!holiday) return res.status(404).json({ error: "Holiday not found" });
+    
+    await holiday.update({ name, startDate, endDate });
+    res.json(holiday);
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function deleteSchoolHoliday(req, res, next) {
+  try {
+    const { id } = req.params;
+    const holiday = await db.SchoolHoliday.findByPk(id);
+    if (!holiday) return res.status(404).json({ error: "Holiday not found" });
+    
+    await holiday.destroy();
+    res.json({ message: "Holiday deleted successfully" });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   getPricingConfiguration,
   updatePricingConfiguration,
+  getSchoolHolidays,
+  createSchoolHoliday,
+  updateSchoolHoliday,
+  deleteSchoolHoliday,
 };

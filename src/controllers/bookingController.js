@@ -135,9 +135,9 @@ async function createBooking(req, res, next) {
       boardType: boardType,
       guests: {
         adults: guests?.adults || 0,
-        children: guests?.teenagers || 0,
+        children: guests?.children || 0,
         toddlers: 0,
-        infants: guests?.infants || 0,
+        infants: 0,
       },
       contact: contact
         ? {
@@ -223,10 +223,7 @@ async function createBooking(req, res, next) {
     const guestCounts = bookingData.guests || {};
     const totalGuests =
       (guestCounts.adults || 0) +
-      (guestCounts.teenagers || 0) +
-      (guestCounts.children || 0) +
-      (guestCounts.toddlers || 0) +
-      (guestCounts.infants || 0);
+      (guestCounts.children || 0);
     const podsRequested = bookingData.podCount || 1;
 
     if (totalGuests < podsRequested) {
@@ -418,7 +415,7 @@ async function createBooking(req, res, next) {
       adults: bookingData.guests.adults || 0,
       children: bookingData.guests.children || 0,
       toddlers: bookingData.guests.toddlers || 0,
-      infants: bookingData.guests.infants || 0,
+      infants: 0,
     });
 
     // booking extras
@@ -588,8 +585,7 @@ async function findBooking(req, res, next) {
       // Guests
       guests: {
         adults: booking.BookingGuests?.[0]?.adults || 0,
-        teenagers: booking.BookingGuests?.[0]?.children || 0,
-        infants: booking.BookingGuests?.[0]?.infants || 0,
+        children: booking.BookingGuests?.[0]?.children || 0,
       },
 
       // Pod information
@@ -714,8 +710,7 @@ async function updateBooking(req, res, next) {
       if (podRecord) {
         const guestData = guests || {
           adults: existingBooking.BookingGuests?.[0]?.adults || 0,
-          teenagers: existingBooking.BookingGuests?.[0]?.children || 0,
-          infants: existingBooking.BookingGuests?.[0]?.infants || 0,
+          children: existingBooking.BookingGuests?.[0]?.children || 0,
         };
 
         const priceCalc = priceCalculator({
@@ -723,9 +718,9 @@ async function updateBooking(req, res, next) {
           boardType: boardType || existingBooking.boardType,
           guests: {
             adults: guestData.adults,
-            children: guestData.teenagers,
+            children: guestData.children,
             toddlers: 0,
-            infants: guestData.infants,
+            infants: 0,
           },
           popUpBeds:
             popUpBeds !== undefined ? popUpBeds : existingBooking.popUpBeds,
@@ -785,8 +780,7 @@ async function updateBooking(req, res, next) {
       if (bookingGuest) {
         await bookingGuest.update({
           adults: guests.adults || bookingGuest.adults,
-          children: guests.teenagers || bookingGuest.children,
-          infants: guests.infants || bookingGuest.infants,
+          children: guests.children || bookingGuest.children,
         });
       }
     }

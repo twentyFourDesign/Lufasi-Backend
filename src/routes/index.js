@@ -6,6 +6,7 @@ const bookingRoutes = require("./bookings");
 const extraRoutes = require("./extras");
 const mealPlanRoutes = require("./mealPlans");
 const discountRoutes = require("./discounts");
+const voucherRoutes = require("./vouchers");
 const paymentRoutes = require("./payments");
 const adminRoutes = require("./admin");
 const uploadRoutes = require("./uploads");
@@ -20,6 +21,7 @@ function registerRoutes(app) {
     app.use("/extras", extraRoutes);
     app.use("/meal-plans", mealPlanRoutes);
     app.use("/discounts", discountRoutes);
+    app.use("/vouchers", voucherRoutes);
     app.use("/payments", paymentRoutes);
     app.use("/uploads", uploadRoutes);
     app.use("/config", configRoutes);
@@ -37,6 +39,7 @@ module.exports = {
     extraRoutes,
     mealPlanRoutes,
     discountRoutes,
+    voucherRoutes,
     paymentRoutes,
     adminRoutes,
     uploadRoutes,

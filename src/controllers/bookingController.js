@@ -290,7 +290,55 @@ async function createBooking(req, res, next) {
       calculatedTotal = calculatedTotal - twelveGuestDiscountAmount;
     }
 
-    const totalBeforeTax = calculatedTotal;
+    // --- APPLY DISCOUNT CODE ---
+    let appliedDiscountId = null;
+    let discountAmount = 0;
+    if (discountCode) {
+      const d = await db.Discount.findOne({
+        where: { code: discountCode.toUpperCase() },
+      });
+      if (d) {
+        const today = new Date().toISOString().split("T")[0];
+        const isNotStarted = d.startDate && today < d.startDate;
+        const isExpired = d.endDate && today > d.endDate;
+        const limitReached = d.maxUses > 0 && d.usedCount >= d.maxUses;
+        
+        if (!isNotStarted && !isExpired && !limitReached) {
+          appliedDiscountId = d.id;
+          if (d.type === "percentage") {
+            discountAmount = Math.round(calculatedTotal * (Number(d.value) / 100));
+          } else {
+            discountAmount = Number(d.value);
+          }
+          calculatedTotal -= discountAmount;
+          // Note: usedCount increment should ideally happen after payment, 
+          // but for simplicity we can track it here or in payment confirmation.
+        }
+      }
+    }
+
+    // --- APPLY VOUCHER CODE ---
+    let appliedVoucherId = null;
+    let voucherAmount = 0;
+    if (voucherCode) {
+      const v = await db.Voucher.findOne({
+        where: { code: voucherCode.toUpperCase() },
+      });
+      if (v) {
+        const today = new Date().toISOString().split("T")[0];
+        const isNotStarted = v.validFrom && today < v.validFrom;
+        const isExpired = v.validTo && today > v.validTo;
+        const limitReached = v.maxUses > 0 && v.usedCount >= v.maxUses;
+
+        if (!isNotStarted && !isExpired && !limitReached) {
+          appliedVoucherId = v.id;
+          voucherAmount = Number(v.value);
+          calculatedTotal -= voucherAmount;
+        }
+      }
+    }
+
+    const totalBeforeTax = Math.max(0, calculatedTotal);
     const totalPrice = totalBeforeTax * 1.125;
 
     const pricingBreakdown = {
@@ -320,6 +368,14 @@ async function createBooking(req, res, next) {
             : 10,
         amount: twelveGuestDiscountAmount,
       },
+      applied_discount: appliedDiscountId ? {
+        code: discountCode.toUpperCase(),
+        amount: discountAmount
+      } : null,
+      applied_voucher: appliedVoucherId ? {
+        code: voucherCode.toUpperCase(),
+        amount: voucherAmount
+      } : null
     };
 
     // Create or find guest directory

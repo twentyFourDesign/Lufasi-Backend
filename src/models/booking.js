@@ -114,6 +114,11 @@ module.exports = (sequelize) => {
         defaultValue: 0,
         field: "twelve_guest_discount_amount",
       },
+      domeDetails: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        field: "dome_details",
+      },
       expiresAt: { type: DataTypes.DATE, allowNull: true },
     },
     { tableName: "bookings" },

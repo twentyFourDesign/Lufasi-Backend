@@ -127,6 +127,7 @@ async function createBooking(req, res, next) {
       discountCode,
       voucherCode,
       podCount,
+      domeDetails = [],
     } = payload;
     const bookingData = {
       podId: podId,
@@ -155,6 +156,7 @@ async function createBooking(req, res, next) {
       discountCode,
       voucherCode,
       podCount: Number(podCount) || 1,
+      domeDetails,
     };
 
     // Basic validations
@@ -456,6 +458,7 @@ async function createBooking(req, res, next) {
       bedConfiguration: bookingData.bedConfiguration,
       twelveGuestDiscountApplied,
       twelveGuestDiscountAmount,
+      domeDetails: bookingData.domeDetails,
       expiresAt: expiresAt,
     });
 

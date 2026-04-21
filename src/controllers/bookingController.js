@@ -128,6 +128,7 @@ async function createBooking(req, res, next) {
       voucherCode,
       podCount,
       domeDetails = [],
+      welcomeNote = null,
     } = payload;
     const bookingData = {
       podId: podId,
@@ -157,6 +158,7 @@ async function createBooking(req, res, next) {
       voucherCode,
       podCount: Number(podCount) || 1,
       domeDetails,
+      welcomeNote,
     };
 
     // Basic validations
@@ -459,6 +461,7 @@ async function createBooking(req, res, next) {
       twelveGuestDiscountApplied,
       twelveGuestDiscountAmount,
       domeDetails: bookingData.domeDetails,
+      welcomeNote: bookingData.welcomeNote,
       expiresAt: expiresAt,
     });
 
@@ -710,6 +713,7 @@ async function findBooking(req, res, next) {
       },
 
       // Additional properties
+      welcomeNote: booking.welcomeNote,
       createdAt: booking.createdAt,
       updatedAt: booking.updatedAt,
     };

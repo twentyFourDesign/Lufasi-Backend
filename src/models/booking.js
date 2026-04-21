@@ -119,6 +119,11 @@ module.exports = (sequelize) => {
         allowNull: true,
         field: "dome_details",
       },
+      welcomeNote: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        field: "welcome_note",
+      },
       expiresAt: { type: DataTypes.DATE, allowNull: true },
     },
     { tableName: "bookings" },

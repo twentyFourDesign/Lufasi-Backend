@@ -342,6 +342,10 @@ async function createBooking(req, res, next) {
       }
     }
 
+    // Calculate complete price BEFORE voucher/discounts but including room and extras
+    const preVoucherTotal = calculatedTotal;
+    const amountBeforeVoucher = Math.max(0, preVoucherTotal) * 1.125;
+
     const totalBeforeTax = Math.max(0, calculatedTotal);
     const totalPrice = totalBeforeTax * 1.125;
 
@@ -534,9 +538,11 @@ async function createBooking(req, res, next) {
     if (appliedVoucherId) {
       // The voucher covers its value or up to the pre-voucher total
       // We record the amount that was subtracted
+      // Capping voucher payment amount at what it actually covered
+      const cappedVoucherAmount = Math.min(voucherAmount, amountBeforeVoucher);
       await db.BookingPayment.create({
         bookingId: booking.id,
-        amount: voucherAmount,
+        amount: cappedVoucherAmount,
         paymentMethod: "voucher",
         paymentStatus: "successful",
         transactionReference: `VOUCH-${voucherCode.toUpperCase()}-${bookingRef}`,
@@ -618,10 +624,26 @@ async function listBookings(req, res, next) {
         { model: db.BookingGuest },
         { model: db.BookingPayment },
         { model: db.Voucher },
+        { model: db.BookingExtra, include: [{ model: db.Extra }] },
       ],
       order: [["createdAt", "DESC"]],
     });
-    res.json({ bookings });
+
+    const bookingsWithExtraData = bookings.map(b => {
+      const bJSON = b.toJSON();
+      
+      // Calculate original total price (Room + Extras + 12.5% Tax)
+      // Since totalPrice in DB is (Room - Discounts) * 1.125, we try to reconstruct original room + extras
+      const extrasTotal = b.BookingExtras?.reduce((sum, be) => sum + parseFloat(be.totalPrice || 0), 0) || 0;
+      const baseRoomTotal = (parseFloat(b.priceSnapshotBase || 0) + parseFloat(b.priceSnapshotExtra || 0));
+      
+      // The total original sticker price
+      bJSON.fullBookingPrice = (baseRoomTotal + extrasTotal) * 1.125;
+      
+      return bJSON;
+    });
+
+    res.json({ bookings: bookingsWithExtraData });
   } catch (err) {
     next(err);
   }

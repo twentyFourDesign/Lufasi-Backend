@@ -70,4 +70,8 @@ db.Booking.belongsTo(db.GuestDirectory, { foreignKey: "guestDirectoryId" });
 db.Booking.hasOne(db.PaymentToken, { foreignKey: "bookingId" });
 db.PaymentToken.belongsTo(db.Booking, { foreignKey: "bookingId" });
 
+db.Booking.belongsTo(db.Voucher, { foreignKey: "voucherId" });
+db.Voucher.hasMany(db.Booking, { foreignKey: "voucherId" });
+
+
 module.exports = db;

@@ -463,6 +463,8 @@ async function createBooking(req, res, next) {
       domeDetails: bookingData.domeDetails,
       welcomeNote: bookingData.welcomeNote,
       expiresAt: expiresAt,
+      discountId: appliedDiscountId,
+      voucherId: appliedVoucherId,
     });
 
     console.log("[createBooking] Booking created", {
@@ -528,20 +530,46 @@ async function createBooking(req, res, next) {
     // Payment link uses opaque token, not bookingId
     const paymentLink = `${process.env.APP_BASE_URL}/payments/pay/${paymentToken}`;
 
-    if (totalPrice <= 0) {
-      // Confirm immediately for zero-amount bookings
-      await booking.update({ bookingStatus: "confirmed", expiresAt: null });
-
-      const payment = await db.BookingPayment.create({
+    // If voucher was applied, record it as a payment
+    if (appliedVoucherId) {
+      // The voucher covers its value or up to the pre-voucher total
+      // We record the amount that was subtracted
+      await db.BookingPayment.create({
         bookingId: booking.id,
-        amount: 0,
+        amount: voucherAmount,
         paymentMethod: "voucher",
         paymentStatus: "successful",
-        transactionReference: `FREE-${bookingRef}`,
+        transactionReference: `VOUCH-${voucherCode.toUpperCase()}-${bookingRef}`,
         gateway: "mock",
         paidAt: new Date(),
         webhookProcessedAt: new Date(),
       });
+    }
+
+    if (totalPrice <= 0) {
+      // Confirm immediately for zero-amount bookings
+      await booking.update({ bookingStatus: "confirmed", expiresAt: null });
+
+      // If no voucher was used but it's still 0 (e.g. 100% discount), create a FREE payment record
+      // If a voucher was used, we already have a payment record above.
+      let payment;
+      if (!appliedVoucherId) {
+        payment = await db.BookingPayment.create({
+          bookingId: booking.id,
+          amount: 0,
+          paymentMethod: "discount_total",
+          paymentStatus: "successful",
+          transactionReference: `FREE-${bookingRef}`,
+          gateway: "mock",
+          paidAt: new Date(),
+          webhookProcessedAt: new Date(),
+        });
+      } else {
+        // Use the voucher payment we just created
+        payment = await db.BookingPayment.findOne({
+          where: { bookingId: booking.id, paymentMethod: "voucher" }
+        });
+      }
 
       // Attach guest info for handleSuccessfulPayment
       booking.GuestDirectory = guestDir;
@@ -589,6 +617,7 @@ async function listBookings(req, res, next) {
         { model: db.GuestDirectory },
         { model: db.BookingGuest },
         { model: db.BookingPayment },
+        { model: db.Voucher },
       ],
       order: [["createdAt", "DESC"]],
     });

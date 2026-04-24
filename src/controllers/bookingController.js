@@ -96,12 +96,12 @@ async function createBooking(req, res, next) {
       hasFile: !!req.file,
       fileInfo: req.file
         ? {
-            fieldname: req.file.fieldname,
-            originalname: req.file.originalname,
-            mimetype: req.file.mimetype,
-            size: req.file.size,
-            path: req.file.path,
-          }
+          fieldname: req.file.fieldname,
+          originalname: req.file.originalname,
+          mimetype: req.file.mimetype,
+          size: req.file.size,
+          path: req.file.path,
+        }
         : null,
     });
 
@@ -143,14 +143,14 @@ async function createBooking(req, res, next) {
       },
       contact: contact
         ? {
-            fullName: `${contact.firstName} ${contact.lastName}`,
-            email: contact.email,
-            phone: contact.phone,
-            gender: contact.gender,
-            dateOfBirth: contact.dob,
-            identificationType: "",
-            identificationNumber: "",
-          }
+          fullName: `${contact.firstName} ${contact.lastName}`,
+          email: contact.email,
+          phone: contact.phone,
+          gender: contact.gender,
+          dateOfBirth: contact.dob,
+          identificationType: "",
+          identificationNumber: "",
+        }
         : null,
       extras: extras || [],
       popUpBeds,
@@ -306,7 +306,7 @@ async function createBooking(req, res, next) {
         const isNotStarted = d.startDate && today < d.startDate;
         const isExpired = d.endDate && today > d.endDate;
         const limitReached = d.maxUses > 0 && d.usedCount >= d.maxUses;
-        
+
         if (!isNotStarted && !isExpired && !limitReached) {
           appliedDiscountId = d.id;
           if (d.type === "percentage") {
@@ -352,12 +352,12 @@ async function createBooking(req, res, next) {
       extra_guest_charges:
         extraGuests > 0
           ? [
-              {
-                guests: extraGuests,
-                unitPrice: Number(pricingConfig.extraGuestFee),
-                total: extraForStay,
-              },
-            ]
+            {
+              guests: extraGuests,
+              unitPrice: Number(pricingConfig.extraGuestFee),
+              total: extraForStay,
+            },
+          ]
           : [],
       meal_plan: {
         type: "Full Board",
@@ -528,6 +528,44 @@ async function createBooking(req, res, next) {
     // Payment link uses opaque token, not bookingId
     const paymentLink = `${process.env.APP_BASE_URL}/payments/pay/${paymentToken}`;
 
+    if (totalPrice <= 0) {
+      // Confirm immediately for zero-amount bookings
+      await booking.update({ bookingStatus: "confirmed", expiresAt: null });
+
+      const payment = await db.BookingPayment.create({
+        bookingId: booking.id,
+        amount: 0,
+        paymentMethod: "voucher",
+        paymentStatus: "successful",
+        transactionReference: `FREE-${bookingRef}`,
+        gateway: "mock",
+        paidAt: new Date(),
+        webhookProcessedAt: new Date(),
+      });
+
+      // Attach guest info for handleSuccessfulPayment
+      booking.GuestDirectory = guestDir;
+
+      const paymentController = require("./paymentController");
+      await paymentController.handleSuccessfulPayment(booking, payment, {
+        status: "success",
+        paidAt: new Date(),
+        rawData: { note: "Zero amount booking" },
+      });
+
+      return res.json({
+        bookingId: booking.id,
+        bookingReference: bookingRef,
+        amountDue: 0,
+        paymentLink: null,
+        room_type: podRecord.podName || "Luxury Pod",
+        guests: totalGuests,
+        pricing_breakdown: pricingBreakdown,
+        total_amount: 0,
+        isConfirmed: true,
+      });
+    }
+
     res.json({
       bookingId: booking.id,
       bookingReference: bookingRef,
@@ -653,14 +691,14 @@ async function findBooking(req, res, next) {
       // Pod information
       pod: booking.Pod
         ? {
-            id: booking.Pod.id.toString(),
-            title: booking.Pod.podName,
-            desc: booking.Pod.description || "",
-            price: parseFloat(booking.Pod.baseAdultPrice || 0),
-            available: true,
-            tags: booking.Pod.amenities ? booking.Pod.amenities.split(",") : [],
-            img: booking.Pod.images?.[0]?.imageUrl || "",
-          }
+          id: booking.Pod.id.toString(),
+          title: booking.Pod.podName,
+          desc: booking.Pod.description || "",
+          price: parseFloat(booking.Pod.baseAdultPrice || 0),
+          available: true,
+          tags: booking.Pod.amenities ? booking.Pod.amenities.split(",") : [],
+          img: booking.Pod.images?.[0]?.imageUrl || "",
+        }
         : null,
       podCount: booking.podCount || 0,
 
@@ -800,7 +838,7 @@ async function updateBooking(req, res, next) {
         const checkOutDate = new Date(checkOut);
         let nights = Math.ceil(
           (checkOutDate.getTime() - checkInDate.getTime()) /
-            (1000 * 60 * 60 * 24),
+          (1000 * 60 * 60 * 24),
         );
         if (!Number.isFinite(nights) || nights < 1) {
           nights = 1;

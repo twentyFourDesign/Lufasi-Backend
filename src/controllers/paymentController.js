@@ -1118,6 +1118,7 @@ module.exports = {
   handlePaystackWebhook,
   handleSquadcoWebhook,
   handlePaymentCallback,
+  handleSuccessfulPayment,
   mockSuccess,
   initiatePayment,
   checkBookingForPayment,

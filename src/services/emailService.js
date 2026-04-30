@@ -221,6 +221,7 @@ class EmailService {
         .replace(/{{extrasAmount}}/g, extrasAmount.toLocaleString())
         .replace(/{{vat}}/g, vat.toLocaleString())
         .replace(/{{totalPrice}}/g, totalPrice.toLocaleString())
+        .replace(/{{contactEmail}}/g, emailConfig.from.address)
         .replace(/{{appBaseUrl}}/g, appBaseUrl);
 
       return html;
@@ -284,6 +285,7 @@ class EmailService {
         .replace(/{{refundStatus}}/g, refundStatus || "Pending Review")
         .replace(/{{refundAmount}}/g, totalPrice.toLocaleString())
         .replace(/{{totalPrice}}/g, totalPrice.toLocaleString())
+        .replace(/{{contactEmail}}/g, emailConfig.from.address)
         .replace(/{{appBaseUrl}}/g, appBaseUrl);
 
       return html;
@@ -537,7 +539,7 @@ class EmailService {
               <div style="background: #fff3e0; border-radius: 12px; padding: 20px; border-left: 4px solid #ff9800;">
                 <h4 style="margin: 0 0 12px 0; color: #e65100; font-size: 16px;">💡 Need Help?</h4>
                 <p style="margin: 0; color: #666; font-size: 13px; line-height: 1.7;">
-                  If you continue to experience issues, please contact us at <strong>info@lufasi.com</strong> or call <strong>+234 812 345 6789</strong>.
+                  If you continue to experience issues, please contact us at <strong>${emailConfig.from.address}</strong> or call <strong>+234 812 345 6789</strong>.
                 </p>
               </div>
             </td>

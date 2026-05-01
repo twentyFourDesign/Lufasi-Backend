@@ -16,6 +16,7 @@ module.exports = (sequelize) => {
         defaultValue: "available",
       },
       bookingId: { type: DataTypes.UUID, allowNull: true },
+      reason: { type: DataTypes.STRING, allowNull: true },
     },
     {
       tableName: "calendar_availabilities",

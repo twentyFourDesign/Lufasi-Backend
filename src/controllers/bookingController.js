@@ -673,7 +673,7 @@ async function listBookings(req, res, next) {
 
 async function blockRoom(req, res, next) {
   try {
-    const { podId, date } = req.body;
+    const { podId, date, reason } = req.body;
     if (!podId || !date) return res.status(400).json({ error: "podId and date required" });
 
     const existing = await db.CalendarAvailability.findOne({
@@ -689,7 +689,8 @@ async function blockRoom(req, res, next) {
         podId,
         date,
         status: "blocked",
-        bookingId: null
+        bookingId: null,
+        reason: reason || "Maintenance"
       });
     }
 

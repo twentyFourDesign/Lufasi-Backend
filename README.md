@@ -7,6 +7,6 @@ scrpt in server to triger manual deploy
 
 
 
-cd /home/deploy/apps/Lufasi-Backend
+su - deploy && cd /home/deploy/apps/Lufasi-Backend
 chmod +x deploy_backend.sh
 sudo -u deploy /home/deploy/deploy_backend.sh

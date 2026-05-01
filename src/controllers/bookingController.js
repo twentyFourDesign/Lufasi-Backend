@@ -268,6 +268,24 @@ async function createBooking(req, res, next) {
       });
     }
 
+    // Explicitly check if the requested pod is blocked or booked
+    const datesArr = [];
+    for (let d = new Date(bookingData.checkIn); d < new Date(bookingData.checkOut); d.setDate(d.getDate() + 1)) {
+        datesArr.push(new Date(d).toISOString().slice(0, 10));
+    }
+    const podConflict = await db.CalendarAvailability.findOne({
+        where: {
+            podId: bookingData.podId,
+            date: { [db.Sequelize.Op.in]: datesArr },
+            status: { [db.Sequelize.Op.in]: ["booked", "blocked"] }
+        }
+    });
+    if (podConflict) {
+        return res.status(400).json({
+            error: "The selected room is unavailable or has been blocked for the selected dates.",
+        });
+    }
+
     const { baseForStay, extraForStay, extraGuests } =
       calculateBaseAndExtraForStay({
         guestsCount: totalGuests,
@@ -643,7 +661,54 @@ async function listBookings(req, res, next) {
       return bJSON;
     });
 
-    res.json({ bookings: bookingsWithExtraData });
+    const blocks = await db.CalendarAvailability.findAll({
+      where: { status: "blocked" },
+    });
+
+    res.json({ bookings: bookingsWithExtraData, blocks });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function blockRoom(req, res, next) {
+  try {
+    const { podId, date } = req.body;
+    if (!podId || !date) return res.status(400).json({ error: "podId and date required" });
+
+    const existing = await db.CalendarAvailability.findOne({
+      where: { podId, date }
+    });
+
+    if (existing && existing.status !== "blocked") {
+      return res.status(400).json({ error: "Room is already booked on this date." });
+    }
+
+    if (!existing) {
+      await db.CalendarAvailability.create({
+        podId,
+        date,
+        status: "blocked",
+        bookingId: null
+      });
+    }
+
+    res.json({ success: true, message: "Room blocked successfully" });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function unblockRoom(req, res, next) {
+  try {
+    const { podId, date } = req.body;
+    if (!podId || !date) return res.status(400).json({ error: "podId and date required" });
+
+    await db.CalendarAvailability.destroy({
+      where: { podId, date, status: "blocked" }
+    });
+
+    res.json({ success: true, message: "Room unblocked successfully" });
   } catch (err) {
     next(err);
   }
@@ -1317,4 +1382,6 @@ module.exports = {
   resendInvoice,
   allocatePod,
   cancelBooking,
+  blockRoom,
+  unblockRoom,
 };

@@ -490,39 +490,35 @@ async function handleSuccessfulPayment(booking, payment, verifyResult) {
   // Get pod info for confirmation email
   const pod = await db.Pod.findByPk(booking.podId);
 
-  // Send booking confirmation email (only after payment success)
-  if (booking.GuestDirectory) {
-    emailService.sendBookingConfirmation(booking, booking.GuestDirectory, pod)
-      .then((result) => {
-        if (result.success) {
-          console.log(`Booking confirmation email sent for ${booking.bookingReference}`);
-        }
-      })
-      .catch((err) => {
-        console.error(`Failed to send booking confirmation email: ${err.message}`);
-      });
+  // Ensure GuestDirectory is loaded
+  let guest = booking.GuestDirectory;
+  if (!guest && booking.guestDirectoryId) {
+    guest = await db.GuestDirectory.findByPk(booking.guestDirectoryId);
+    booking.GuestDirectory = guest;
+  }
 
-    // Also send payment success email
-    emailService.sendPaymentSuccess(booking, booking.GuestDirectory, payment)
-      .then((result) => {
-        if (result.success) {
-          console.log(`Payment success email sent for ${booking.bookingReference}`);
-        }
-      })
-      .catch((err) => {
-        console.error(`Failed to send payment success email: ${err.message}`);
-      });
+  // Send emails (awaited to ensure delivery in serverless environments)
+  if (guest) {
+    try {
+      const results = await Promise.allSettled([
+        emailService.sendBookingConfirmation(booking, guest, pod),
+        emailService.sendPaymentSuccess(booking, guest, payment),
+        emailService.sendAdminBookingAlert(booking, guest, pod)
+      ]);
 
-    // Send admin alert about new booking
-    emailService.sendAdminBookingAlert(booking, booking.GuestDirectory, pod)
-      .then((result) => {
-        if (result.success) {
-          console.log(`Admin booking alert sent for ${booking.bookingReference}`);
+      results.forEach((result, index) => {
+        const types = ['Booking Confirmation', 'Payment Success', 'Admin Alert'];
+        if (result.status === 'rejected') {
+          console.error(`Failed to send ${types[index]} email:`, result.reason);
+        } else if (result.value && !result.value.success) {
+          console.error(`Failed to send ${types[index]} email (logic):`, result.value.message);
+        } else {
+          console.log(`${types[index]} email sent for ${booking.bookingReference}`);
         }
-      })
-      .catch((err) => {
-        console.error(`Failed to send admin booking alert: ${err.message}`);
       });
+    } catch (err) {
+      console.error("Error during email dispatch:", err);
+    }
   }
 
 

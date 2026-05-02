@@ -5,7 +5,14 @@ function generateDatesArray(startDate, endDate) {
   const arr = [];
   let cur = new Date(startDate);
   const end = new Date(endDate);
-  while (cur <= end) {
+  
+  // If checking a single day (start == end), just check that day
+  if (cur.getTime() === end.getTime()) {
+    arr.push(new Date(cur).toISOString().slice(0, 10));
+    return arr;
+  }
+
+  while (cur < end) {
     arr.push(new Date(cur).toISOString().slice(0, 10));
     cur.setDate(cur.getDate() + 1);
   }

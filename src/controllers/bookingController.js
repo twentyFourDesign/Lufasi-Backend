@@ -88,6 +88,36 @@ async function hasPodCapacity({ checkIn, checkOut, podsRequested, config }) {
   return usedPods + podsRequested <= totalPodsAvailable;
 }
 
+async function getAvailablePodIdsForDates({ checkIn, checkOut }) {
+  const start = new Date(checkIn);
+  const end = new Date(checkOut);
+
+  if (!(start instanceof Date) || !(end instanceof Date) || !(start < end)) {
+    return [];
+  }
+
+  const datesArr = [];
+  for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
+    datesArr.push(new Date(d).toISOString().slice(0, 10));
+  }
+
+  const [pods, occupiedRows] = await Promise.all([
+    db.Pod.findAll({ attributes: ["id"] }),
+    db.CalendarAvailability.findAll({
+      attributes: ["podId"],
+      where: {
+        date: { [db.Sequelize.Op.in]: datesArr },
+        status: { [db.Sequelize.Op.in]: ["booked", "blocked"] },
+      },
+    }),
+  ]);
+
+  const occupiedPodIds = new Set(occupiedRows.map((row) => row.podId));
+  return pods
+    .map((pod) => pod.id)
+    .filter((podId) => !occupiedPodIds.has(podId));
+}
+
 // Create booking (public)
 async function createBooking(req, res, next) {
   try {
@@ -180,10 +210,10 @@ async function createBooking(req, res, next) {
       });
     }
 
-    const podRecord = await db.Pod.findByPk(bookingData.podId, {
+    const requestedPodRecord = await db.Pod.findByPk(bookingData.podId, {
       include: ["priceRules"],
     });
-    if (!podRecord) return res.status(404).json({ error: "Pod not found" });
+    if (!requestedPodRecord) return res.status(404).json({ error: "Pod not found" });
 
     // Age Verification (18+)
     if (bookingData.contact && bookingData.contact.dateOfBirth) {
@@ -268,23 +298,28 @@ async function createBooking(req, res, next) {
       });
     }
 
-    // Explicitly check if the requested pod is blocked or booked
-    const datesArr = [];
-    for (let d = new Date(bookingData.checkIn); d < new Date(bookingData.checkOut); d.setDate(d.getDate() + 1)) {
-        datesArr.push(new Date(d).toISOString().slice(0, 10));
-    }
-    const podConflict = await db.CalendarAvailability.findOne({
-        where: {
-            podId: bookingData.podId,
-            date: { [db.Sequelize.Op.in]: datesArr },
-            status: { [db.Sequelize.Op.in]: ["booked", "blocked"] }
-        }
+    // If the originally selected pod is taken by the time user confirms,
+    // auto-fallback to another available pod for the same dates.
+    const availablePodIds = await getAvailablePodIdsForDates({
+      checkIn: bookingData.checkIn,
+      checkOut: bookingData.checkOut,
     });
-    if (podConflict) {
-        return res.status(400).json({
-            error: "The selected room is unavailable or has been blocked for the selected dates.",
-        });
+    const requestedPodIsAvailable = availablePodIds.includes(bookingData.podId);
+    const resolvedPodId = requestedPodIsAvailable
+      ? bookingData.podId
+      : availablePodIds[0];
+
+    if (!resolvedPodId) {
+      return res.status(400).json({
+        error: "The selected room is unavailable or has been blocked for the selected dates.",
+      });
     }
+
+    bookingData.podId = resolvedPodId;
+    const podRecord =
+      resolvedPodId === requestedPodRecord.id
+        ? requestedPodRecord
+        : await db.Pod.findByPk(resolvedPodId, { include: ["priceRules"] });
 
     const { baseForStay, extraForStay, extraGuests } =
       calculateBaseAndExtraForStay({

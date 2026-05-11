@@ -13,6 +13,9 @@ module.exports = (sequelize) => {
       description: { type: DataTypes.TEXT },
       price: { type: DataTypes.DECIMAL(12, 2) },
       category: { type: DataTypes.STRING(100) },
+      /** Shown on booking extras step for this category (synced across all extras in the category). */
+      categoryTitle: { type: DataTypes.STRING(200), allowNull: true },
+      categorySubtitle: { type: DataTypes.TEXT, allowNull: true },
       imageUrl: { type: DataTypes.TEXT },
       isActive: { type: DataTypes.BOOLEAN, defaultValue: true },
     },

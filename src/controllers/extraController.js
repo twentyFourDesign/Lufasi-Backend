@@ -4,7 +4,16 @@ const uploadService = require("../services/uploadService");
 
 async function createExtra(req, res, next) {
   try {
-    const { name, description, price, category, imageUrl, isActive } = req.body;
+    const {
+      name,
+      description,
+      price,
+      category,
+      imageUrl,
+      isActive,
+      categoryTitle,
+      categorySubtitle,
+    } = req.body;
     const extra = await db.Extra.create({
       id: uuidv4(),
       name,
@@ -12,6 +21,8 @@ async function createExtra(req, res, next) {
       price,
       category,
       imageUrl,
+      categoryTitle: categoryTitle || null,
+      categorySubtitle: categorySubtitle || null,
       isActive: isActive !== undefined ? isActive : true,
     });
     res.json({ extra });
@@ -53,6 +64,15 @@ async function getExtrasByCategory(req, res, next) {
           category: category,
           options: [],
         };
+      }
+
+      const t = extra.categoryTitle && String(extra.categoryTitle).trim();
+      if (t) {
+        acc[category].title = t;
+      }
+      const s = extra.categorySubtitle && String(extra.categorySubtitle).trim();
+      if (s) {
+        acc[category].subtitle = s;
       }
 
       acc[category].options.push({
@@ -218,6 +238,57 @@ async function clearCategoryImage(req, res, next) {
   }
 }
 
+async function updateCategoryMeta(req, res, next) {
+  try {
+    const { category } = req.params;
+    if (!category) {
+      return res.status(400).json({ error: "Category is required" });
+    }
+
+    const { categoryTitle, categorySubtitle } = req.body || {};
+    const updatePayload = {};
+
+    if (categoryTitle !== undefined) {
+      const v = categoryTitle === null || categoryTitle === ""
+        ? null
+        : String(categoryTitle).trim().slice(0, 200);
+      updatePayload.categoryTitle = v || null;
+    }
+    if (categorySubtitle !== undefined) {
+      const v =
+        categorySubtitle === null || categorySubtitle === ""
+          ? null
+          : String(categorySubtitle).trim();
+      updatePayload.categorySubtitle = v || null;
+    }
+
+    if (Object.keys(updatePayload).length === 0) {
+      return res.status(400).json({
+        error: "Send categoryTitle and/or categorySubtitle (use empty string to reset).",
+      });
+    }
+
+    const [updatedCount] = await db.Extra.update(updatePayload, {
+      where: { category },
+    });
+
+    if (updatedCount === 0) {
+      return res
+        .status(404)
+        .json({ error: "No extras found for this category" });
+    }
+
+    const updatedExtras = await db.Extra.findAll({
+      where: { category },
+      order: [["name", "ASC"]],
+    });
+
+    res.json({ category, ...updatePayload, extras: updatedExtras });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   createExtra,
   listExtras,
@@ -227,5 +298,6 @@ module.exports = {
   updateExtraImage,
   updateCategoryImage,
   clearCategoryImage,
+  updateCategoryMeta,
 };
 

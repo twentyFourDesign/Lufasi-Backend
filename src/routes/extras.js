@@ -7,6 +7,11 @@ const { uploaders } = require("../services/uploadService");
 router.get("/", extraController.listExtras);
 router.get("/by-category", extraController.getExtrasByCategory);
 router.post("/", adminAuth, extraController.createExtra);
+router.put(
+  "/category/:category/meta",
+  adminAuth,
+  extraController.updateCategoryMeta,
+);
 router.put("/:id", adminAuth, extraController.updateExtra);
 router.delete("/:id", adminAuth, extraController.deleteExtra);
 router.post(

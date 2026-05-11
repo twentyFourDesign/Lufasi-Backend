@@ -3,6 +3,9 @@ require("dotenv").config({
 });
 const app = require("./app");
 const db = require("./models");
+const {
+  ensureExtrasCategoryColumns,
+} = require("./utils/ensureExtrasCategoryColumns");
 
 const PORT = process.env.PORT || 4000;
 
@@ -13,7 +16,15 @@ async function init() {
     console.log("Database connected.");
     // Skip sync locally - tables already exist on Supabase
     // sync() fails with PgBouncer pooler (cache lookup errors)
-    // Run migrations manually if schema changes are needed
+    try {
+      await ensureExtrasCategoryColumns(db.sequelize);
+    } catch (schemaErr) {
+      console.error(
+        "[init] Failed to ensure extras category columns:",
+        schemaErr.message,
+      );
+      throw schemaErr;
+    }
     console.log("Database synced.");
 
 

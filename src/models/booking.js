@@ -114,11 +114,24 @@ module.exports = (sequelize) => {
         defaultValue: 0,
         field: "twelve_guest_discount_amount",
       },
+      peakRateAdjustmentPercent: {
+        type: DataTypes.DECIMAL(5, 2),
+        allowNull: true,
+        defaultValue: null,
+        field: "peak_rate_adjustment_percent",
+      },
+      peakRateName: {
+        type: DataTypes.STRING(100),
+        allowNull: true,
+        defaultValue: null,
+        field: "peak_rate_name",
+      },
       domeDetails: {
         type: DataTypes.JSON,
         allowNull: true,
         field: "dome_details",
       },
+
       welcomeNote: {
         type: DataTypes.JSON,
         allowNull: true,

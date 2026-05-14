@@ -140,6 +140,165 @@ async function deleteSchoolHoliday(req, res, next) {
   }
 }
 
+// ─── Peak / Off-Peak Rates ───────────────────────────────────────────────────
+
+/**
+ * Return the single most-impactful active peak rate that overlaps [startDate, endDate].
+ * "Most impactful" = highest absolute percentageAdjustment value.
+ * If none overlap, returns null.
+ *
+ * @param {string} startDate  YYYY-MM-DD check-in date
+ * @param {string} endDate    YYYY-MM-DD check-out date
+ * @returns {Promise<{id, name, percentageAdjustment}|null>}
+ */
+async function getActivePeakRateForDates(startDate, endDate) {
+  if (!startDate || !endDate) return null;
+
+  const { Op } = require("sequelize");
+
+  // Fetch all active rates whose date range overlaps the booking window:
+  //   rate.startDate <= checkOut  AND  rate.endDate >= checkIn
+  const rates = await db.PeakRate.findAll({
+    where: {
+      isActive: true,
+      startDate: { [Op.lte]: endDate },
+      endDate:   { [Op.gte]: startDate },
+    },
+  });
+
+  if (!rates.length) return null;
+
+  // Pick the one with the highest absolute percentage adjustment
+  const best = rates.reduce((prev, curr) => {
+    return Math.abs(Number(curr.percentageAdjustment)) > Math.abs(Number(prev.percentageAdjustment))
+      ? curr
+      : prev;
+  });
+
+  return {
+    id: best.id,
+    name: best.name,
+    percentageAdjustment: Number(best.percentageAdjustment),
+  };
+}
+
+async function getPeakRates(req, res, next) {
+  try {
+    const rates = await db.PeakRate.findAll({
+      order: [["startDate", "ASC"]],
+    });
+    res.json(rates.map((r) => ({
+      id: r.id,
+      name: r.name,
+      startDate: r.startDate,
+      endDate: r.endDate,
+      percentageAdjustment: Number(r.percentageAdjustment),
+      isActive: r.isActive,
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+    })));
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function createPeakRate(req, res, next) {
+  try {
+    const { name, startDate, endDate, percentageAdjustment, isActive } = req.body;
+
+    if (!name || !startDate || !endDate || percentageAdjustment === undefined || percentageAdjustment === null) {
+      return res.status(400).json({
+        error: "name, startDate, endDate, and percentageAdjustment are required",
+      });
+    }
+
+    const pct = Number(percentageAdjustment);
+    if (isNaN(pct) || pct < -100 || pct > 1000) {
+      return res.status(400).json({
+        error: "percentageAdjustment must be a number between -100 and 1000",
+      });
+    }
+
+    if (new Date(startDate) > new Date(endDate)) {
+      return res.status(400).json({ error: "startDate must be before or equal to endDate" });
+    }
+
+    const rate = await db.PeakRate.create({
+      name: name.trim(),
+      startDate,
+      endDate,
+      percentageAdjustment: pct,
+      isActive: isActive !== false,
+    });
+
+    res.status(201).json({
+      id: rate.id,
+      name: rate.name,
+      startDate: rate.startDate,
+      endDate: rate.endDate,
+      percentageAdjustment: Number(rate.percentageAdjustment),
+      isActive: rate.isActive,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function updatePeakRate(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { name, startDate, endDate, percentageAdjustment, isActive } = req.body;
+
+    const rate = await db.PeakRate.findByPk(id);
+    if (!rate) return res.status(404).json({ error: "Peak rate not found" });
+
+    if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
+      return res.status(400).json({ error: "startDate must be before or equal to endDate" });
+    }
+
+    if (percentageAdjustment !== undefined) {
+      const pct = Number(percentageAdjustment);
+      if (isNaN(pct) || pct < -100 || pct > 1000) {
+        return res.status(400).json({
+          error: "percentageAdjustment must be a number between -100 and 1000",
+        });
+      }
+    }
+
+    await rate.update({
+      ...(name !== undefined && { name: name.trim() }),
+      ...(startDate !== undefined && { startDate }),
+      ...(endDate !== undefined && { endDate }),
+      ...(percentageAdjustment !== undefined && { percentageAdjustment: Number(percentageAdjustment) }),
+      ...(isActive !== undefined && { isActive }),
+    });
+
+    res.json({
+      id: rate.id,
+      name: rate.name,
+      startDate: rate.startDate,
+      endDate: rate.endDate,
+      percentageAdjustment: Number(rate.percentageAdjustment),
+      isActive: rate.isActive,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function deletePeakRate(req, res, next) {
+  try {
+    const { id } = req.params;
+    const rate = await db.PeakRate.findByPk(id);
+    if (!rate) return res.status(404).json({ error: "Peak rate not found" });
+
+    await rate.destroy();
+    res.json({ message: "Peak rate deleted successfully" });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   getPricingConfiguration,
   updatePricingConfiguration,
@@ -147,4 +306,10 @@ module.exports = {
   createSchoolHoliday,
   updateSchoolHoliday,
   deleteSchoolHoliday,
+  // Peak rates
+  getPeakRates,
+  createPeakRate,
+  updatePeakRate,
+  deletePeakRate,
+  getActivePeakRateForDates, // exported so bookingController can use it directly
 };

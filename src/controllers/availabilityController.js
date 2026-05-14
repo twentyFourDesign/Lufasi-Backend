@@ -1,5 +1,6 @@
 const db = require("../models");
 const { Op } = require("sequelize");
+const { getActivePeakRateForDates } = require("./configController");
 
 function generateDatesArray(startDate, endDate) {
   const arr = [];
@@ -36,17 +37,18 @@ async function checkAvailability(req, res, next) {
       whereClause.bookingId = { [Op.ne]: excludeBookingId };
     }
 
-    const exclusions = await db.CalendarAvailability.findAll({
-      where: whereClause,
-    });
+    const [exclusions, pods, peakRateInfo] = await Promise.all([
+      db.CalendarAvailability.findAll({ where: whereClause }),
+      db.Pod.findAll({
+        where: {
+          [Op.or]: [{ isDeleted: false }, { isDeleted: null }],
+        },
+        include: ["images", "priceRules"],
+      }),
+      getActivePeakRateForDates(startDate, endDate),
+    ]);
 
     const occupiedPodIds = new Set(exclusions.map((e) => e.podId));
-    const pods = await db.Pod.findAll({
-      where: {
-        [Op.or]: [{ isDeleted: false }, { isDeleted: null }],
-      },
-      include: ["images", "priceRules"],
-    });
 
     console.log(
       `Found ${pods.length} pods in database matching isDeleted filter`,
@@ -72,7 +74,19 @@ async function checkAvailability(req, res, next) {
       };
     });
 
-    res.json(formattedPods);
+    // Append peak rate info to every pod and at top-level so the frontend
+    // can read it from one place.
+    res.json({
+      pods: formattedPods,
+      peakRateInfo: peakRateInfo
+        ? {
+            id: peakRateInfo.id,
+            name: peakRateInfo.name,
+            percentageAdjustment: peakRateInfo.percentageAdjustment,
+            type: peakRateInfo.percentageAdjustment >= 0 ? "peak" : "off_peak",
+          }
+        : null,
+    });
   } catch (err) {
     next(err);
   }

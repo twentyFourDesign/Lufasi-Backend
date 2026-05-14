@@ -29,6 +29,7 @@ db.GuestDirectory = require("./guestDirectory")(sequelize, Sequelize);
 db.PaymentToken = require("./paymentToken")(sequelize, Sequelize);
 db.PricingConfiguration = require("./pricingConfiguration")(sequelize, Sequelize);
 db.SchoolHoliday = require("./schoolHoliday")(sequelize, Sequelize);
+db.PeakRate = require("./peakRate")(sequelize, Sequelize);
 
 // Associations
 db.Property.hasMany(db.Pod, { foreignKey: "propertyId" });

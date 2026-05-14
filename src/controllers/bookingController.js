@@ -4,6 +4,7 @@ const { v4: uuidv4 } = require("uuid");
 const { priceCalculator } = require("../utils/priceCalculator");
 const emailService = require("../services/emailService");
 const uploadService = require("../services/uploadService");
+const { getActivePeakRateForDates } = require("./configController");
 
 // Helper to generate booking reference
 function genRef() {
@@ -33,12 +34,15 @@ function calculateBaseAndExtraForStay({
   podsCount,
   nights,
   config,
+  peakAdjustmentPercent = 0,
 }) {
   const totalGuests = guestsCount < 1 ? 1 : guestsCount;
   const pods = podsCount < 1 ? 1 : podsCount;
 
-  const basePricePerPod = Number(config.basePricePerPod || 400000);
-  const extraGuestFee = Number(config.extraGuestFee || 100000);
+  // Apply peak/off-peak rate multiplier to both base price and extra guest fee
+  const peakMultiplier = 1 + (peakAdjustmentPercent / 100);
+  const basePricePerPod = Number(config.basePricePerPod || 400000) * peakMultiplier;
+  const extraGuestFee = Number(config.extraGuestFee || 100000) * peakMultiplier;
 
   const basePerNight = pods * basePricePerPod;
   const extraGuests = totalGuests > pods ? totalGuests - pods : 0;
@@ -321,12 +325,19 @@ async function createBooking(req, res, next) {
         ? requestedPodRecord
         : await db.Pod.findByPk(resolvedPodId, { include: ["priceRules"] });
 
+    const peakRateInfo = await getActivePeakRateForDates(
+      bookingData.checkIn,
+      bookingData.checkOut
+    );
+    const peakAdjustmentPercent = peakRateInfo ? peakRateInfo.percentageAdjustment : 0;
+
     const { baseForStay, extraForStay, extraGuests } =
       calculateBaseAndExtraForStay({
         guestsCount: totalGuests,
         podsCount: podsRequested,
         nights,
         config: pricingConfig,
+        peakAdjustmentPercent,
       });
 
     let calculatedTotal = baseForStay + extraForStay;
@@ -436,6 +447,10 @@ async function createBooking(req, res, next) {
       applied_voucher: appliedVoucherId ? {
         code: voucherCode.toUpperCase(),
         amount: voucherAmount
+      } : null,
+      peak_rate_adjustment: peakRateInfo ? {
+        name: peakRateInfo.name,
+        percentageAdjustment: peakRateInfo.percentageAdjustment,
       } : null
     };
 
@@ -517,6 +532,8 @@ async function createBooking(req, res, next) {
       bedConfiguration: bookingData.bedConfiguration,
       twelveGuestDiscountApplied,
       twelveGuestDiscountAmount,
+      peakRateAdjustmentPercent: peakAdjustmentPercent || null,
+      peakRateName: peakRateInfo ? peakRateInfo.name : null,
       domeDetails: bookingData.domeDetails,
       welcomeNote: bookingData.welcomeNote,
       expiresAt: expiresAt,

@@ -42,6 +42,18 @@ module.exports = (sequelize) => {
         type: DataTypes.STRING(10),
         allowNull: false,
       },
+      weekdayPeakPercent: {
+        type: DataTypes.DECIMAL(5, 2),
+        allowNull: true,
+        defaultValue: 0,
+        field: "weekday_peak_percent",
+      },
+      weekdayOffPeakPercent: {
+        type: DataTypes.DECIMAL(5, 2),
+        allowNull: true,
+        defaultValue: 0,
+        field: "weekday_off_peak_percent",
+      },
     },
     {
       tableName: "pricing_configurations",

@@ -6,6 +6,7 @@ const db = require("./models");
 const {
   ensureExtrasCategoryColumns,
 } = require("./utils/ensureExtrasCategoryColumns");
+const { ensureWeekdayPeakColumns } = require("./utils/ensureWeekdayPeakColumns");
 
 const PORT = process.env.PORT || 4000;
 
@@ -18,9 +19,10 @@ async function init() {
     // sync() fails with PgBouncer pooler (cache lookup errors)
     try {
       await ensureExtrasCategoryColumns(db.sequelize);
+      await ensureWeekdayPeakColumns(db.sequelize);
     } catch (schemaErr) {
       console.error(
-        "[init] Failed to ensure extras category columns:",
+        "[init] Failed to ensure schema columns:",
         schemaErr.message,
       );
       throw schemaErr;

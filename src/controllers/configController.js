@@ -29,6 +29,14 @@ async function getPricingConfiguration(req, res, next) {
           ? Number(config.twelveGuestDiscountPercent)
           : 10,
       currency: config.currency,
+      weekday_peak_percent:
+        config.weekdayPeakPercent != null
+          ? Number(config.weekdayPeakPercent)
+          : 0,
+      weekday_off_peak_percent:
+        config.weekdayOffPeakPercent != null
+          ? Number(config.weekdayOffPeakPercent)
+          : 0,
     });
   } catch (err) {
     next(err);
@@ -45,6 +53,8 @@ async function updatePricingConfiguration(req, res, next) {
       total_pods_available,
       twelve_guest_discount_percent,
       currency,
+      weekday_peak_percent,
+      weekday_off_peak_percent,
     } = req.body;
 
     let config = await db.PricingConfiguration.findByPk(1);
@@ -59,6 +69,12 @@ async function updatePricingConfiguration(req, res, next) {
         totalPodsAvailable: total_pods_available,
         twelveGuestDiscountPercent: twelve_guest_discount_percent,
         currency,
+        weekdayPeakPercent:
+          weekday_peak_percent != null ? Number(weekday_peak_percent) : 0,
+        weekdayOffPeakPercent:
+          weekday_off_peak_percent != null
+            ? Number(weekday_off_peak_percent)
+            : 0,
       });
     } else {
       config.basePricePerPod = base_price_per_pod;
@@ -68,6 +84,12 @@ async function updatePricingConfiguration(req, res, next) {
       config.totalPodsAvailable = total_pods_available;
       config.twelveGuestDiscountPercent = twelve_guest_discount_percent;
       config.currency = currency;
+      if (weekday_peak_percent !== undefined) {
+        config.weekdayPeakPercent = Number(weekday_peak_percent);
+      }
+      if (weekday_off_peak_percent !== undefined) {
+        config.weekdayOffPeakPercent = Number(weekday_off_peak_percent);
+      }
       await config.save();
     }
 
@@ -83,6 +105,14 @@ async function updatePricingConfiguration(req, res, next) {
           ? Number(config.twelveGuestDiscountPercent)
           : 10,
       currency: config.currency,
+      weekday_peak_percent:
+        config.weekdayPeakPercent != null
+          ? Number(config.weekdayPeakPercent)
+          : 0,
+      weekday_off_peak_percent:
+        config.weekdayOffPeakPercent != null
+          ? Number(config.weekdayOffPeakPercent)
+          : 0,
     });
   } catch (err) {
     next(err);

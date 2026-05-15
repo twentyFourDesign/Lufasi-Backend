@@ -5,6 +5,7 @@ const { priceCalculator } = require("../utils/priceCalculator");
 const emailService = require("../services/emailService");
 const uploadService = require("../services/uploadService");
 const { getActivePeakRateForDates } = require("./configController");
+const { calculateStayRoomSubtotal } = require("../utils/weekdayPeakPricing");
 
 // Helper to generate booking reference
 function genRef() {
@@ -24,37 +25,50 @@ async function getPricingConfigOrDefault() {
       totalPodsAvailable: 6,
       twelveGuestDiscountPercent: 10,
       currency: "NGN",
+      weekdayPeakPercent: 0,
+      weekdayOffPeakPercent: 0,
     };
   }
   return config;
 }
 
-function calculateBaseAndExtraForStay({
+async function calculateBaseAndExtraForStay({
   guestsCount,
   podsCount,
   nights,
   config,
-  peakAdjustmentPercent = 0,
+  checkIn,
+  checkOut,
 }) {
   const totalGuests = guestsCount < 1 ? 1 : guestsCount;
   const pods = podsCount < 1 ? 1 : podsCount;
 
-  // Apply peak/off-peak rate multiplier to both base price and extra guest fee
-  const peakMultiplier = 1 + (peakAdjustmentPercent / 100);
-  const basePricePerPod = Number(config.basePricePerPod || 400000) * peakMultiplier;
-  const extraGuestFee = Number(config.extraGuestFee || 100000) * peakMultiplier;
+  const seasonalRates = await db.PeakRate.findAll({ where: { isActive: true } });
 
-  const basePerNight = pods * basePricePerPod;
+  const stayPricing = calculateStayRoomSubtotal({
+    checkIn,
+    checkOut,
+    podsCount: pods,
+    guestsCount: totalGuests,
+    basePricePerPod: config.basePricePerPod,
+    extraGuestFee: config.extraGuestFee,
+    weekdayPeakPercent: config.weekdayPeakPercent ?? 0,
+    weekdayOffPeakPercent: config.weekdayOffPeakPercent ?? 0,
+    seasonalRates: seasonalRates.map((r) => ({
+      startDate: r.startDate,
+      endDate: r.endDate,
+      percentageAdjustment: Number(r.percentageAdjustment),
+      isActive: r.isActive,
+    })),
+  });
+
   const extraGuests = totalGuests > pods ? totalGuests - pods : 0;
-  const extraPerNight = extraGuests * extraGuestFee;
-
-  const baseForStay = basePerNight * nights;
-  const extraForStay = extraPerNight * nights;
 
   return {
-    baseForStay,
-    extraForStay,
+    baseForStay: stayPricing.baseForStay,
+    extraForStay: stayPricing.extraForStay,
     extraGuests,
+    nightBreakdown: stayPricing.nightBreakdown,
   };
 }
 
@@ -327,17 +341,17 @@ async function createBooking(req, res, next) {
 
     const peakRateInfo = await getActivePeakRateForDates(
       bookingData.checkIn,
-      bookingData.checkOut
+      bookingData.checkOut,
     );
-    const peakAdjustmentPercent = peakRateInfo ? peakRateInfo.percentageAdjustment : 0;
 
     const { baseForStay, extraForStay, extraGuests } =
-      calculateBaseAndExtraForStay({
+      await calculateBaseAndExtraForStay({
         guestsCount: totalGuests,
         podsCount: podsRequested,
         nights,
         config: pricingConfig,
-        peakAdjustmentPercent,
+        checkIn: bookingData.checkIn,
+        checkOut: bookingData.checkOut,
       });
 
     let calculatedTotal = baseForStay + extraForStay;
@@ -532,7 +546,9 @@ async function createBooking(req, res, next) {
       bedConfiguration: bookingData.bedConfiguration,
       twelveGuestDiscountApplied,
       twelveGuestDiscountAmount,
-      peakRateAdjustmentPercent: peakAdjustmentPercent || null,
+      peakRateAdjustmentPercent: peakRateInfo
+        ? peakRateInfo.percentageAdjustment
+        : null,
       peakRateName: peakRateInfo ? peakRateInfo.name : null,
       domeDetails: bookingData.domeDetails,
       welcomeNote: bookingData.welcomeNote,

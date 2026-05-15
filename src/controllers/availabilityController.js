@@ -1,6 +1,10 @@
 const db = require("../models");
 const { Op } = require("sequelize");
 const { getActivePeakRateForDates } = require("./configController");
+const {
+  getWeekdayPeakInfoFromConfig,
+  calculateStayRoomSubtotal,
+} = require("../utils/weekdayPeakPricing");
 
 function generateDatesArray(startDate, endDate) {
   const arr = [];
@@ -37,16 +41,19 @@ async function checkAvailability(req, res, next) {
       whereClause.bookingId = { [Op.ne]: excludeBookingId };
     }
 
-    const [exclusions, pods, peakRateInfo] = await Promise.all([
-      db.CalendarAvailability.findAll({ where: whereClause }),
-      db.Pod.findAll({
-        where: {
-          [Op.or]: [{ isDeleted: false }, { isDeleted: null }],
-        },
-        include: ["images", "priceRules"],
-      }),
-      getActivePeakRateForDates(startDate, endDate),
-    ]);
+    const [exclusions, pods, peakRateInfo, pricingConfig, seasonalRates] =
+      await Promise.all([
+        db.CalendarAvailability.findAll({ where: whereClause }),
+        db.Pod.findAll({
+          where: {
+            [Op.or]: [{ isDeleted: false }, { isDeleted: null }],
+          },
+          include: ["images", "priceRules"],
+        }),
+        getActivePeakRateForDates(startDate, endDate),
+        db.PricingConfiguration.findByPk(1),
+        db.PeakRate.findAll({ where: { isActive: true } }),
+      ]);
 
     const occupiedPodIds = new Set(exclusions.map((e) => e.podId));
 
@@ -74,8 +81,24 @@ async function checkAvailability(req, res, next) {
       };
     });
 
-    // Append peak rate info to every pod and at top-level so the frontend
-    // can read it from one place.
+    const weekdayPeakInfo = getWeekdayPeakInfoFromConfig(pricingConfig || {});
+    const stayPreview = calculateStayRoomSubtotal({
+      checkIn: startDate,
+      checkOut: endDate,
+      podsCount: 1,
+      guestsCount: 2,
+      basePricePerPod: pricingConfig?.basePricePerPod ?? 400000,
+      extraGuestFee: pricingConfig?.extraGuestFee ?? 100000,
+      weekdayPeakPercent: weekdayPeakInfo.peakPercent,
+      weekdayOffPeakPercent: weekdayPeakInfo.offPeakPercent,
+      seasonalRates: seasonalRates.map((r) => ({
+        startDate: r.startDate,
+        endDate: r.endDate,
+        percentageAdjustment: Number(r.percentageAdjustment),
+        isActive: r.isActive,
+      })),
+    });
+
     res.json({
       pods: formattedPods,
       peakRateInfo: peakRateInfo
@@ -86,6 +109,18 @@ async function checkAvailability(req, res, next) {
             type: peakRateInfo.percentageAdjustment >= 0 ? "peak" : "off_peak",
           }
         : null,
+      weekdayPeakInfo: {
+        ...weekdayPeakInfo,
+        peakNights: stayPreview.peakNights,
+        offPeakNights: stayPreview.offPeakNights,
+        nights: stayPreview.nights,
+      },
+      seasonalRatePeriods: seasonalRates.map((r) => ({
+        startDate: r.startDate,
+        endDate: r.endDate,
+        percentageAdjustment: Number(r.percentageAdjustment),
+        isActive: r.isActive,
+      })),
     });
   } catch (err) {
     next(err);

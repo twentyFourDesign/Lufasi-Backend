@@ -42,6 +42,26 @@ module.exports = (sequelize) => {
         type: DataTypes.STRING(10),
         allowNull: false,
       },
+      basePricePerPodPeak: {
+        type: DataTypes.DECIMAL(12, 2),
+        allowNull: true,
+        field: "base_price_per_pod_peak",
+      },
+      basePricePerPodOffPeak: {
+        type: DataTypes.DECIMAL(12, 2),
+        allowNull: true,
+        field: "base_price_per_pod_off_peak",
+      },
+      extraGuestFeePeak: {
+        type: DataTypes.DECIMAL(12, 2),
+        allowNull: true,
+        field: "extra_guest_fee_peak",
+      },
+      extraGuestFeeOffPeak: {
+        type: DataTypes.DECIMAL(12, 2),
+        allowNull: true,
+        field: "extra_guest_fee_off_peak",
+      },
       weekdayPeakPercent: {
         type: DataTypes.DECIMAL(5, 2),
         allowNull: true,

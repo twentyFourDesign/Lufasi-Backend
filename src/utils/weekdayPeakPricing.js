@@ -1,7 +1,9 @@
 /**
  * Weekday peak: Friday & Saturday. Off-peak: Sunday–Thursday.
- * Seasonal date ranges (peak_rates table) apply per night on top of weekday rates.
+ * Seasonal date ranges (peak_rates table) apply per night as % on top of nightly rates.
  */
+
+const { getNightRatesFromConfig } = require("./pricingRates");
 
 function parseLocalDate(dateInput) {
   if (!dateInput) return null;
@@ -45,10 +47,6 @@ function iterStayNights(checkIn, checkOut) {
   return nights;
 }
 
-/**
- * @param {string} dateYmd
- * @param {Array<{startDate,endDate,percentageAdjustment,isActive}>} seasonalRates
- */
 function getSeasonalPercentForDate(dateYmd, seasonalRates) {
   if (!seasonalRates?.length) return 0;
 
@@ -68,10 +66,8 @@ function getSeasonalPercentForDate(dateYmd, seasonalRates) {
   return best ? Number(best.percentageAdjustment) : 0;
 }
 
-function getWeekdayPeakInfoFromConfig(config) {
+function getWeekdayPeakInfoFromConfig() {
   return {
-    peakPercent: Number(config?.weekdayPeakPercent ?? 0) || 0,
-    offPeakPercent: Number(config?.weekdayOffPeakPercent ?? 0) || 0,
     peakDaysLabel: "Friday & Saturday",
     offPeakDaysLabel: "Sunday – Thursday",
   };
@@ -79,23 +75,19 @@ function getWeekdayPeakInfoFromConfig(config) {
 
 /**
  * Per-night room subtotal (base + extra guests), before extras add-ons.
+ * @param {object} pricingConfig - pricing configuration row or plain object
  */
 function calculateStayRoomSubtotal({
   checkIn,
   checkOut,
   podsCount,
   guestsCount,
-  basePricePerPod,
-  extraGuestFee,
-  weekdayPeakPercent = 0,
-  weekdayOffPeakPercent = 0,
+  pricingConfig = {},
   seasonalRates = [],
 }) {
   const pods = podsCount < 1 ? 1 : podsCount;
   const totalGuests = guestsCount < 1 ? 1 : guestsCount;
   const extraGuests = totalGuests > pods ? totalGuests - pods : 0;
-  const base = Number(basePricePerPod || 400000);
-  const extraFee = Number(extraGuestFee || 100000);
 
   const nights = iterStayNights(checkIn, checkOut);
   if (!nights.length) {
@@ -118,13 +110,15 @@ function calculateStayRoomSubtotal({
   for (const nightDate of nights) {
     const ymd = toYmd(nightDate);
     const isPeak = isWeekdayPeakNight(nightDate);
-    const weekdayPct = isPeak ? weekdayPeakPercent : weekdayOffPeakPercent;
+    const { basePerPod, extraGuestFee } = getNightRatesFromConfig(
+      pricingConfig,
+      isPeak,
+    );
     const seasonalPct = getSeasonalPercentForDate(ymd, seasonalRates);
-    const multiplier =
-      (1 + weekdayPct / 100) * (1 + seasonalPct / 100);
+    const multiplier = 1 + seasonalPct / 100;
 
-    const nightBase = pods * base * multiplier;
-    const nightExtra = extraGuests * extraFee * multiplier;
+    const nightBase = pods * basePerPod * multiplier;
+    const nightExtra = extraGuests * extraGuestFee * multiplier;
     const nightTotal = nightBase + nightExtra;
 
     subtotal += nightTotal;
@@ -136,7 +130,8 @@ function calculateStayRoomSubtotal({
     nightBreakdown.push({
       date: ymd,
       isPeak,
-      weekdayPercent: weekdayPct,
+      basePerPod,
+      extraGuestFee,
       seasonalPercent: seasonalPct,
       multiplier,
       nightTotal,

@@ -50,10 +50,7 @@ async function calculateBaseAndExtraForStay({
     checkOut,
     podsCount: pods,
     guestsCount: totalGuests,
-    basePricePerPod: config.basePricePerPod,
-    extraGuestFee: config.extraGuestFee,
-    weekdayPeakPercent: config.weekdayPeakPercent ?? 0,
-    weekdayOffPeakPercent: config.weekdayOffPeakPercent ?? 0,
+    pricingConfig: config,
     seasonalRates: seasonalRates.map((r) => ({
       startDate: r.startDate,
       endDate: r.endDate,

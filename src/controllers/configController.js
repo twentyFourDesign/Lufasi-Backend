@@ -1,4 +1,21 @@
 const db = require("../models");
+const { pricingConfigToApi } = require("../utils/pricingRates");
+
+function buildPricingResponse(config) {
+  const rates = pricingConfigToApi(config);
+  return {
+    id: config.id ?? 1,
+    ...rates,
+    max_guests_per_pod: config.maxGuestsPerPod,
+    min_guests_per_pod: config.minGuestsPerPod,
+    total_pods_available: config.totalPodsAvailable,
+    twelve_guest_discount_percent:
+      config.twelveGuestDiscountPercent != null
+        ? Number(config.twelveGuestDiscountPercent)
+        : 10,
+    currency: config.currency,
+  };
+}
 
 async function getPricingConfiguration(req, res, next) {
   try {
@@ -9,6 +26,10 @@ async function getPricingConfiguration(req, res, next) {
         id: 1,
         basePricePerPod: 400000,
         extraGuestFee: 100000,
+        basePricePerPodOffPeak: 325000,
+        basePricePerPodPeak: 400000,
+        extraGuestFeeOffPeak: 100000,
+        extraGuestFeePeak: 100000,
         maxGuestsPerPod: 2,
         minGuestsPerPod: 1,
         totalPodsAvailable: 6,
@@ -17,27 +38,7 @@ async function getPricingConfiguration(req, res, next) {
       };
     }
 
-    res.json({
-      id: config.id,
-      base_price_per_pod: Number(config.basePricePerPod),
-      extra_guest_fee: Number(config.extraGuestFee),
-      max_guests_per_pod: config.maxGuestsPerPod,
-      min_guests_per_pod: config.minGuestsPerPod,
-      total_pods_available: config.totalPodsAvailable,
-      twelve_guest_discount_percent:
-        config.twelveGuestDiscountPercent != null
-          ? Number(config.twelveGuestDiscountPercent)
-          : 10,
-      currency: config.currency,
-      weekday_peak_percent:
-        config.weekdayPeakPercent != null
-          ? Number(config.weekdayPeakPercent)
-          : 0,
-      weekday_off_peak_percent:
-        config.weekdayOffPeakPercent != null
-          ? Number(config.weekdayOffPeakPercent)
-          : 0,
-    });
+    res.json(buildPricingResponse(config));
   } catch (err) {
     next(err);
   }
@@ -46,74 +47,55 @@ async function getPricingConfiguration(req, res, next) {
 async function updatePricingConfiguration(req, res, next) {
   try {
     const {
-      base_price_per_pod,
-      extra_guest_fee,
+      base_price_per_pod_off_peak,
+      base_price_per_pod_peak,
+      extra_guest_fee_off_peak,
+      extra_guest_fee_peak,
       max_guests_per_pod,
       min_guests_per_pod,
       total_pods_available,
       twelve_guest_discount_percent,
       currency,
-      weekday_peak_percent,
-      weekday_off_peak_percent,
     } = req.body;
+
+    const offPeakBase = Number(base_price_per_pod_off_peak);
+    const peakBase = Number(base_price_per_pod_peak);
+    const offPeakExtra = Number(extra_guest_fee_off_peak);
+    const peakExtra = Number(extra_guest_fee_peak);
 
     let config = await db.PricingConfiguration.findByPk(1);
 
     if (!config) {
       config = await db.PricingConfiguration.create({
         id: 1,
-        basePricePerPod: base_price_per_pod,
-        extraGuestFee: extra_guest_fee,
+        basePricePerPod: offPeakBase,
+        extraGuestFee: offPeakExtra,
+        basePricePerPodOffPeak: offPeakBase,
+        basePricePerPodPeak: peakBase,
+        extraGuestFeeOffPeak: offPeakExtra,
+        extraGuestFeePeak: peakExtra,
         maxGuestsPerPod: max_guests_per_pod,
         minGuestsPerPod: min_guests_per_pod,
         totalPodsAvailable: total_pods_available,
         twelveGuestDiscountPercent: twelve_guest_discount_percent,
         currency,
-        weekdayPeakPercent:
-          weekday_peak_percent != null ? Number(weekday_peak_percent) : 0,
-        weekdayOffPeakPercent:
-          weekday_off_peak_percent != null
-            ? Number(weekday_off_peak_percent)
-            : 0,
       });
     } else {
-      config.basePricePerPod = base_price_per_pod;
-      config.extraGuestFee = extra_guest_fee;
+      config.basePricePerPodOffPeak = offPeakBase;
+      config.basePricePerPodPeak = peakBase;
+      config.extraGuestFeeOffPeak = offPeakExtra;
+      config.extraGuestFeePeak = peakExtra;
+      config.basePricePerPod = offPeakBase;
+      config.extraGuestFee = offPeakExtra;
       config.maxGuestsPerPod = max_guests_per_pod;
       config.minGuestsPerPod = min_guests_per_pod;
       config.totalPodsAvailable = total_pods_available;
       config.twelveGuestDiscountPercent = twelve_guest_discount_percent;
       config.currency = currency;
-      if (weekday_peak_percent !== undefined) {
-        config.weekdayPeakPercent = Number(weekday_peak_percent);
-      }
-      if (weekday_off_peak_percent !== undefined) {
-        config.weekdayOffPeakPercent = Number(weekday_off_peak_percent);
-      }
       await config.save();
     }
 
-    res.json({
-      id: config.id,
-      base_price_per_pod: Number(config.basePricePerPod),
-      extra_guest_fee: Number(config.extraGuestFee),
-      max_guests_per_pod: config.maxGuestsPerPod,
-      min_guests_per_pod: config.minGuestsPerPod,
-      total_pods_available: config.totalPodsAvailable,
-      twelve_guest_discount_percent:
-        config.twelveGuestDiscountPercent != null
-          ? Number(config.twelveGuestDiscountPercent)
-          : 10,
-      currency: config.currency,
-      weekday_peak_percent:
-        config.weekdayPeakPercent != null
-          ? Number(config.weekdayPeakPercent)
-          : 0,
-      weekday_off_peak_percent:
-        config.weekdayOffPeakPercent != null
-          ? Number(config.weekdayOffPeakPercent)
-          : 0,
-    });
+    res.json(buildPricingResponse(config));
   } catch (err) {
     next(err);
   }
@@ -149,7 +131,7 @@ async function updateSchoolHoliday(req, res, next) {
     const { name, startDate, endDate } = req.body;
     const holiday = await db.SchoolHoliday.findByPk(id);
     if (!holiday) return res.status(404).json({ error: "Holiday not found" });
-    
+
     await holiday.update({ name, startDate, endDate });
     res.json(holiday);
   } catch (err) {
@@ -162,7 +144,7 @@ async function deleteSchoolHoliday(req, res, next) {
     const { id } = req.params;
     const holiday = await db.SchoolHoliday.findByPk(id);
     if (!holiday) return res.status(404).json({ error: "Holiday not found" });
-    
+
     await holiday.destroy();
     res.json({ message: "Holiday deleted successfully" });
   } catch (err) {
@@ -170,37 +152,24 @@ async function deleteSchoolHoliday(req, res, next) {
   }
 }
 
-// ─── Peak / Off-Peak Rates ───────────────────────────────────────────────────
-
-/**
- * Return the single most-impactful active peak rate that overlaps [startDate, endDate].
- * "Most impactful" = highest absolute percentageAdjustment value.
- * If none overlap, returns null.
- *
- * @param {string} startDate  YYYY-MM-DD check-in date
- * @param {string} endDate    YYYY-MM-DD check-out date
- * @returns {Promise<{id, name, percentageAdjustment}|null>}
- */
 async function getActivePeakRateForDates(startDate, endDate) {
   if (!startDate || !endDate) return null;
 
   const { Op } = require("sequelize");
 
-  // Fetch all active rates whose date range overlaps the booking window:
-  //   rate.startDate <= checkOut  AND  rate.endDate >= checkIn
   const rates = await db.PeakRate.findAll({
     where: {
       isActive: true,
       startDate: { [Op.lte]: endDate },
-      endDate:   { [Op.gte]: startDate },
+      endDate: { [Op.gte]: startDate },
     },
   });
 
   if (!rates.length) return null;
 
-  // Pick the one with the highest absolute percentage adjustment
   const best = rates.reduce((prev, curr) => {
-    return Math.abs(Number(curr.percentageAdjustment)) > Math.abs(Number(prev.percentageAdjustment))
+    return Math.abs(Number(curr.percentageAdjustment)) >
+      Math.abs(Number(prev.percentageAdjustment))
       ? curr
       : prev;
   });
@@ -217,16 +186,18 @@ async function getPeakRates(req, res, next) {
     const rates = await db.PeakRate.findAll({
       order: [["startDate", "ASC"]],
     });
-    res.json(rates.map((r) => ({
-      id: r.id,
-      name: r.name,
-      startDate: r.startDate,
-      endDate: r.endDate,
-      percentageAdjustment: Number(r.percentageAdjustment),
-      isActive: r.isActive,
-      createdAt: r.createdAt,
-      updatedAt: r.updatedAt,
-    })));
+    res.json(
+      rates.map((r) => ({
+        id: r.id,
+        name: r.name,
+        startDate: r.startDate,
+        endDate: r.endDate,
+        percentageAdjustment: Number(r.percentageAdjustment),
+        isActive: r.isActive,
+        createdAt: r.createdAt,
+        updatedAt: r.updatedAt,
+      })),
+    );
   } catch (err) {
     next(err);
   }
@@ -236,7 +207,13 @@ async function createPeakRate(req, res, next) {
   try {
     const { name, startDate, endDate, percentageAdjustment, isActive } = req.body;
 
-    if (!name || !startDate || !endDate || percentageAdjustment === undefined || percentageAdjustment === null) {
+    if (
+      !name ||
+      !startDate ||
+      !endDate ||
+      percentageAdjustment === undefined ||
+      percentageAdjustment === null
+    ) {
       return res.status(400).json({
         error: "name, startDate, endDate, and percentageAdjustment are required",
       });
@@ -299,7 +276,9 @@ async function updatePeakRate(req, res, next) {
       ...(name !== undefined && { name: name.trim() }),
       ...(startDate !== undefined && { startDate }),
       ...(endDate !== undefined && { endDate }),
-      ...(percentageAdjustment !== undefined && { percentageAdjustment: Number(percentageAdjustment) }),
+      ...(percentageAdjustment !== undefined && {
+        percentageAdjustment: Number(percentageAdjustment),
+      }),
       ...(isActive !== undefined && { isActive }),
     });
 
@@ -336,10 +315,9 @@ module.exports = {
   createSchoolHoliday,
   updateSchoolHoliday,
   deleteSchoolHoliday,
-  // Peak rates
   getPeakRates,
   createPeakRate,
   updatePeakRate,
   deletePeakRate,
-  getActivePeakRateForDates, // exported so bookingController can use it directly
+  getActivePeakRateForDates,
 };

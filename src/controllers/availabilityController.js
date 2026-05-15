@@ -81,16 +81,13 @@ async function checkAvailability(req, res, next) {
       };
     });
 
-    const weekdayPeakInfo = getWeekdayPeakInfoFromConfig(pricingConfig || {});
+    const weekdayPeakInfo = getWeekdayPeakInfoFromConfig();
     const stayPreview = calculateStayRoomSubtotal({
       checkIn: startDate,
       checkOut: endDate,
       podsCount: 1,
       guestsCount: 2,
-      basePricePerPod: pricingConfig?.basePricePerPod ?? 400000,
-      extraGuestFee: pricingConfig?.extraGuestFee ?? 100000,
-      weekdayPeakPercent: weekdayPeakInfo.peakPercent,
-      weekdayOffPeakPercent: weekdayPeakInfo.offPeakPercent,
+      pricingConfig: pricingConfig || {},
       seasonalRates: seasonalRates.map((r) => ({
         startDate: r.startDate,
         endDate: r.endDate,

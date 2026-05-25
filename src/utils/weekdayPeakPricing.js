@@ -138,8 +138,8 @@ function calculateStayRoomSubtotal({
 
     const nightBase = pods * basePerPod * multiplier;
     const nightExtra = extraAdultGuests * extraGuestFee * multiplier;
-    const nightToddler = toddlers * extraGuestFee * 0.75 * multiplier;
-    const nightChild = children * extraGuestFee * 0.5 * multiplier;
+    const nightToddler = toddlers * basePerPod * 0.75 * multiplier;
+    const nightChild = children * basePerPod * 0.5 * multiplier;
     const nightTotal = nightBase + nightExtra + nightToddler + nightChild;
 
     subtotal += nightTotal;

@@ -103,7 +103,7 @@ function priceCalculator({
       subtotal += adultTotal;
     }
 
-    const childPct = rulesMap["child"] != null ? rulesMap["child"] : 75;
+    const childPct = rulesMap["child"] != null ? rulesMap["child"] : 50;
     const childUnit = adultUnit * (parseFloat(childPct) / 100.0);
     const childTotal = children * childUnit;
     if (children > 0) {
@@ -116,7 +116,7 @@ function priceCalculator({
       subtotal += childTotal;
     }
 
-    const toddlerPct = rulesMap["toddler"] != null ? rulesMap["toddler"] : 50;
+    const toddlerPct = rulesMap["toddler"] != null ? rulesMap["toddler"] : 75;
     const toddlerUnit = adultUnit * (parseFloat(toddlerPct) / 100.0);
     const toddlerTotal = toddlers * toddlerUnit;
     if (toddlers > 0) {

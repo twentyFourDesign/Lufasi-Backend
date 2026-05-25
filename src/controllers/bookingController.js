@@ -6,6 +6,13 @@ const emailService = require("../services/emailService");
 const uploadService = require("../services/uploadService");
 const { getActivePeakRateForDates } = require("./configController");
 const { calculateStayRoomSubtotal } = require("../utils/weekdayPeakPricing");
+const {
+  normalizeFamilyGuests,
+  hasUnder13Guests,
+  getBillableGuestCount,
+  getDisplayGuestCount,
+  isFamilyCompositionAllowed,
+} = require("../utils/familyRules");
 
 // Helper to generate booking reference
 function genRef() {
@@ -33,15 +40,15 @@ async function getPricingConfigOrDefault() {
 }
 
 async function calculateBaseAndExtraForStay({
-  guestsCount,
+  guestCounts,
   podsCount,
   nights,
   config,
   checkIn,
   checkOut,
 }) {
-  const totalGuests = guestsCount < 1 ? 1 : guestsCount;
   const pods = podsCount < 1 ? 1 : podsCount;
+  const normalizedGuests = normalizeFamilyGuests(guestCounts);
 
   const seasonalRates = await db.PeakRate.findAll({ where: { isActive: true } });
 
@@ -49,7 +56,7 @@ async function calculateBaseAndExtraForStay({
     checkIn,
     checkOut,
     podsCount: pods,
-    guestsCount: totalGuests,
+    guestCounts: normalizedGuests,
     pricingConfig: config,
     seasonalRates: seasonalRates.map((r) => ({
       startDate: r.startDate,
@@ -59,11 +66,14 @@ async function calculateBaseAndExtraForStay({
     })),
   });
 
-  const extraGuests = totalGuests > pods ? totalGuests - pods : 0;
+  const adultRateGuests = normalizedGuests.adults + normalizedGuests.teenagers;
+  const extraGuests = Math.max(0, adultRateGuests - pods);
 
   return {
     baseForStay: stayPricing.baseForStay,
     extraForStay: stayPricing.extraForStay,
+    toddlerForStay: stayPricing.toddlerForStay || 0,
+    childForStay: stayPricing.childForStay || 0,
     extraGuests,
     nightBreakdown: stayPricing.nightBreakdown,
   };
@@ -101,6 +111,17 @@ async function hasPodCapacity({ checkIn, checkOut, podsRequested, config }) {
   }, 0);
 
   return usedPods + podsRequested <= totalPodsAvailable;
+}
+
+async function isStayInChildrenAllowedDates(checkIn, checkOut) {
+  const { Op } = db.Sequelize;
+  const allowedRange = await db.SchoolHoliday.findOne({
+    where: {
+      startDate: { [Op.lt]: checkOut },
+      endDate: { [Op.gte]: checkIn },
+    },
+  });
+  return Boolean(allowedRange);
 }
 
 async function getAvailablePodIdsForDates({ checkIn, checkOut }) {
@@ -269,28 +290,38 @@ async function createBooking(req, res, next) {
       nights = 1;
     }
 
-    const guestCounts = bookingData.guests || {};
-    const totalGuests =
-      (guestCounts.adults || 0) +
-      (guestCounts.children || 0);
+    const guestCounts = normalizeFamilyGuests(bookingData.guests || {});
+    const billableGuests = getBillableGuestCount(guestCounts);
+    const totalGuests = getDisplayGuestCount(guestCounts);
     const podsRequested = bookingData.podCount || 1;
 
-    if (totalGuests < podsRequested) {
+    if (billableGuests < podsRequested) {
       return res.status(400).json({
         error: "Guests count must be at least equal to pods count.",
       });
     }
 
-    if (totalGuests > podsRequested * (pricingConfig.maxGuestsPerPod || 2)) {
+    if (!isFamilyCompositionAllowed(guestCounts, podsRequested)) {
       return res.status(400).json({
         error:
-          "Guests count exceeds maximum allowed for the requested number of pods.",
+          "Guest mix does not match the family occupancy rules for the selected number of domes.",
       });
     }
 
-    if (totalGuests < (pricingConfig.minGuestsPerPod || 1)) {
+    if (billableGuests < (pricingConfig.minGuestsPerPod || 1)) {
       return res.status(400).json({
         error: "Guests count is below the minimum allowed per booking.",
+      });
+    }
+
+    if (
+      hasUnder13Guests(guestCounts) &&
+      podsRequested !== (pricingConfig.totalPodsAvailable || 6) &&
+      !(await isStayInChildrenAllowedDates(bookingData.checkIn, bookingData.checkOut))
+    ) {
+      return res.status(400).json({
+        error:
+          "Children aged 0-12 are only permitted on children-allowed dates or with a full camp takeover.",
       });
     }
 
@@ -341,9 +372,15 @@ async function createBooking(req, res, next) {
       bookingData.checkOut,
     );
 
-    const { baseForStay, extraForStay, extraGuests } =
+    const {
+      baseForStay,
+      extraForStay,
+      toddlerForStay,
+      childForStay,
+      extraGuests,
+    } =
       await calculateBaseAndExtraForStay({
-        guestsCount: totalGuests,
+        guestCounts,
         podsCount: podsRequested,
         nights,
         config: pricingConfig,
@@ -351,12 +388,12 @@ async function createBooking(req, res, next) {
         checkOut: bookingData.checkOut,
       });
 
-    let calculatedTotal = baseForStay + extraForStay;
+    let calculatedTotal = baseForStay + extraForStay + toddlerForStay + childForStay;
 
     let twelveGuestDiscountApplied = false;
     let twelveGuestDiscountAmount = 0;
 
-    if (totalGuests === 12) {
+    if (billableGuests === 12) {
       const configuredDiscountPercent =
         pricingConfig.twelveGuestDiscountPercent != null
           ? Number(pricingConfig.twelveGuestDiscountPercent)
@@ -429,13 +466,38 @@ async function createBooking(req, res, next) {
       podCount: podsRequested,
       basePodsCost: baseForStay,
       extra_guest_charges:
-        extraGuests > 0
+        extraGuests > 0 || toddlerForStay > 0 || childForStay > 0
           ? [
-            {
-              guests: extraGuests,
-              unitPrice: Number(pricingConfig.extraGuestFee),
-              total: extraForStay,
-            },
+            ...(extraGuests > 0
+              ? [
+                  {
+                    guests: extraGuests,
+                    label: "Additional adult-rate guests",
+                    unitPrice: Number(pricingConfig.extraGuestFee),
+                    total: extraForStay,
+                  },
+                ]
+              : []),
+            ...(toddlerForStay > 0
+              ? [
+                  {
+                    guests: guestCounts.toddlers,
+                    label: "Toddlers (1-3)",
+                    rate: "75% of adult extra-guest rate",
+                    total: toddlerForStay,
+                  },
+                ]
+              : []),
+            ...(childForStay > 0
+              ? [
+                  {
+                    guests: guestCounts.children,
+                    label: "Children (4-12)",
+                    rate: "50% of adult extra-guest rate",
+                    total: childForStay,
+                  },
+                ]
+              : []),
           ]
           : [],
       meal_plan: {
@@ -531,7 +593,7 @@ async function createBooking(req, res, next) {
       guestsCount: totalGuests,
       podsCount: podsRequested,
       priceSnapshotBase: baseForStay,
-      priceSnapshotExtra: extraForStay,
+      priceSnapshotExtra: extraForStay + toddlerForStay + childForStay,
       identificationImageUrl,
       calculatedTotal,
       configBasePricePerPod: Number(pricingConfig.basePricePerPod),
@@ -563,10 +625,10 @@ async function createBooking(req, res, next) {
     // booking guests
     await db.BookingGuest.create({
       bookingId: booking.id,
-      adults: bookingData.guests.adults || 0,
-      children: bookingData.guests.children || 0,
-      toddlers: bookingData.guests.toddlers || 0,
-      infants: 0,
+      adults: guestCounts.adults + guestCounts.teenagers,
+      children: guestCounts.children,
+      toddlers: guestCounts.toddlers,
+      infants: guestCounts.infants,
     });
 
     // booking extras
@@ -993,7 +1055,9 @@ async function updateBooking(req, res, next) {
       if (podRecord) {
         const guestData = guests || {
           adults: existingBooking.BookingGuests?.[0]?.adults || 0,
+          toddlers: existingBooking.BookingGuests?.[0]?.toddlers || 0,
           children: existingBooking.BookingGuests?.[0]?.children || 0,
+          infants: existingBooking.BookingGuests?.[0]?.infants || 0,
         };
 
         const priceCalc = priceCalculator({
@@ -1002,8 +1066,8 @@ async function updateBooking(req, res, next) {
           guests: {
             adults: guestData.adults,
             children: guestData.children,
-            toddlers: 0,
-            infants: 0,
+            toddlers: guestData.toddlers || 0,
+            infants: guestData.infants || 0,
           },
           popUpBeds:
             popUpBeds !== undefined ? popUpBeds : existingBooking.popUpBeds,
@@ -1063,7 +1127,9 @@ async function updateBooking(req, res, next) {
       if (bookingGuest) {
         await bookingGuest.update({
           adults: guests.adults || bookingGuest.adults,
-          children: guests.children || bookingGuest.children,
+          children: guests.children ?? bookingGuest.children,
+          toddlers: guests.toddlers ?? bookingGuest.toddlers,
+          infants: guests.infants ?? bookingGuest.infants,
         });
       }
     }

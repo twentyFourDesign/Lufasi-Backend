@@ -73,6 +73,16 @@ function getWeekdayPeakInfoFromConfig() {
   };
 }
 
+function normalizeGuestCounts(guestCounts = {}) {
+  return {
+    adults: Number(guestCounts.adults) || 0,
+    teenagers: Number(guestCounts.teenagers) || 0,
+    toddlers: Number(guestCounts.toddlers) || 0,
+    children: Number(guestCounts.children) || 0,
+    infants: Number(guestCounts.infants) || 0,
+  };
+}
+
 /**
  * Per-night room subtotal (base + extra guests), before extras add-ons.
  * @param {object} pricingConfig - pricing configuration row or plain object
@@ -82,12 +92,19 @@ function calculateStayRoomSubtotal({
   checkOut,
   podsCount,
   guestsCount,
+  guestCounts,
   pricingConfig = {},
   seasonalRates = [],
 }) {
   const pods = podsCount < 1 ? 1 : podsCount;
-  const totalGuests = guestsCount < 1 ? 1 : guestsCount;
-  const extraGuests = totalGuests > pods ? totalGuests - pods : 0;
+  const guests = normalizeGuestCounts(guestCounts);
+  const adultRateGuests =
+    guestCounts != null
+      ? guests.adults + guests.teenagers
+      : Math.max(1, Number(guestsCount) || 1);
+  const toddlers = guestCounts != null ? guests.toddlers : 0;
+  const children = guestCounts != null ? guests.children : 0;
+  const extraAdultGuests = Math.max(0, adultRateGuests - pods);
 
   const nights = iterStayNights(checkIn, checkOut);
   if (!nights.length) {
@@ -103,6 +120,8 @@ function calculateStayRoomSubtotal({
   let subtotal = 0;
   let baseForStay = 0;
   let extraForStay = 0;
+  let toddlerForStay = 0;
+  let childForStay = 0;
   let peakNights = 0;
   let offPeakNights = 0;
   const nightBreakdown = [];
@@ -118,12 +137,16 @@ function calculateStayRoomSubtotal({
     const multiplier = 1 + seasonalPct / 100;
 
     const nightBase = pods * basePerPod * multiplier;
-    const nightExtra = extraGuests * extraGuestFee * multiplier;
-    const nightTotal = nightBase + nightExtra;
+    const nightExtra = extraAdultGuests * extraGuestFee * multiplier;
+    const nightToddler = toddlers * extraGuestFee * 0.75 * multiplier;
+    const nightChild = children * extraGuestFee * 0.5 * multiplier;
+    const nightTotal = nightBase + nightExtra + nightToddler + nightChild;
 
     subtotal += nightTotal;
     baseForStay += nightBase;
     extraForStay += nightExtra;
+    toddlerForStay += nightToddler;
+    childForStay += nightChild;
     if (isPeak) peakNights += 1;
     else offPeakNights += 1;
 
@@ -134,6 +157,10 @@ function calculateStayRoomSubtotal({
       extraGuestFee,
       seasonalPercent: seasonalPct,
       multiplier,
+      nightBase,
+      nightExtra,
+      nightToddler,
+      nightChild,
       nightTotal,
     });
   }
@@ -142,6 +169,8 @@ function calculateStayRoomSubtotal({
     subtotal,
     baseForStay,
     extraForStay,
+    toddlerForStay,
+    childForStay,
     nights: nights.length,
     peakNights,
     offPeakNights,

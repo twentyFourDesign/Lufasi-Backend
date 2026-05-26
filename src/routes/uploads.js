@@ -114,6 +114,48 @@ router.delete("/", adminAuth, async (req, res, next) => {
     }
 });
 
+// Upload/replace admin login background image
+router.post("/admin-login-bg", adminAuth, uploaders.branding.single("image"), async (req, res, next) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: "No image file provided" });
+        }
+
+        const fs = require("fs");
+        const path = require("path");
+
+        const brandingDir = path.join(__dirname, "../../uploads/branding");
+        const targetPath = path.join(brandingDir, "admin-login-bg.png");
+        const backupDir = path.join(brandingDir, "backup");
+
+        if (!fs.existsSync(brandingDir)) {
+            fs.mkdirSync(brandingDir, { recursive: true });
+        }
+        if (!fs.existsSync(backupDir)) {
+            fs.mkdirSync(backupDir, { recursive: true });
+        }
+
+        if (fs.existsSync(targetPath)) {
+            const timestamp = Date.now();
+            const backupPath = path.join(backupDir, `admin-login-bg-${timestamp}.png`);
+            fs.copyFileSync(targetPath, backupPath);
+            fs.unlinkSync(targetPath);
+        }
+
+        const uploadedFilePath = path.join(brandingDir, req.file.filename);
+        fs.renameSync(uploadedFilePath, targetPath);
+
+        const baseUrl = process.env.APP_BASE_URL || "";
+        res.json({
+            success: true,
+            message: "Admin login background updated successfully",
+            imageUrl: `${baseUrl}/uploads/branding/admin-login-bg.png`,
+        });
+    } catch (err) {
+        next(err);
+    }
+});
+
 // Upload/replace default pod image
 router.post("/default-pod", adminAuth, uploaders.pods.single("image"), async (req, res, next) => {
     try {

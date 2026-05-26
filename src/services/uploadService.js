@@ -178,6 +178,7 @@ const uploaders = {
   pods: createUploader("pods"),
   extras: createUploader("extras"),
   meals: createUploader("meals"),
+  branding: createUploader("branding"),
   general: createUploader(""),
   identification: createUploader("ids", {
     maxFileSize: 10 * 1024 * 1024,

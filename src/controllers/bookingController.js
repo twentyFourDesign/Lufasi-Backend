@@ -12,6 +12,7 @@ const {
   getBillableGuestCount,
   getDisplayGuestCount,
   isFamilyCompositionAllowed,
+  getMaxPopUpBeds,
 } = require("../utils/familyRules");
 
 // Helper to generate booking reference
@@ -203,9 +204,10 @@ async function createBooking(req, res, next) {
       boardType: boardType,
       guests: {
         adults: guests?.adults || 0,
+        teenagers: guests?.teenagers || 0,
         children: guests?.children || 0,
-        toddlers: 0,
-        infants: 0,
+        toddlers: guests?.toddlers || 0,
+        infants: guests?.infants || 0,
       },
       contact: contact
         ? {
@@ -307,6 +309,18 @@ async function createBooking(req, res, next) {
           "Guest mix does not match the family occupancy rules for the selected number of domes.",
       });
     }
+
+    const requestedPopUpBeds = Math.max(
+      0,
+      Math.floor(Number(bookingData.popUpBeds) || 0),
+    );
+    const maxPopUpBeds = getMaxPopUpBeds(guestCounts, podsRequested);
+    if (requestedPopUpBeds > maxPopUpBeds) {
+      return res.status(400).json({
+        error: `Up to ${maxPopUpBeds} pop-up bed${maxPopUpBeds === 1 ? "" : "s"} can be requested for this booking.`,
+      });
+    }
+    bookingData.popUpBeds = requestedPopUpBeds;
 
     if (billableGuests < (pricingConfig.minGuestsPerPod || 1)) {
       return res.status(400).json({
@@ -1043,8 +1057,29 @@ async function updateBooking(req, res, next) {
     if (dates?.checkOut) updateData.checkOut = dates.checkOut;
     if (podId) updateData.podId = podId;
     if (boardType) updateData.boardType = boardType;
-    if (popUpBeds !== undefined) updateData.popUpBeds = popUpBeds;
     if (bookingStatus) updateData.bookingStatus = bookingStatus;
+
+    // Validate popUpBeds against the effective guest composition and pods
+    if (popUpBeds !== undefined) {
+      const sanitized = Math.max(0, Math.floor(Number(popUpBeds) || 0));
+      const effectiveGuestRow =
+        guests || existingBooking.BookingGuests?.[0] || {};
+      const normalized = normalizeFamilyGuests({
+        adults: effectiveGuestRow.adults,
+        teenagers: effectiveGuestRow.teenagers,
+        toddlers: effectiveGuestRow.toddlers,
+        children: effectiveGuestRow.children,
+        infants: effectiveGuestRow.infants,
+      });
+      const effectivePods = existingBooking.podCount || 1;
+      const maxPopUp = getMaxPopUpBeds(normalized, effectivePods);
+      if (sanitized > maxPopUp) {
+        return res.status(400).json({
+          error: `Up to ${maxPopUp} pop-up bed${maxPopUp === 1 ? "" : "s"} can be requested for this booking.`,
+        });
+      }
+      updateData.popUpBeds = sanitized;
+    }
 
     // Recalculate price if pod, guests, or extras changed
     if (podId || guests || extras.length > 0 || popUpBeds !== undefined) {

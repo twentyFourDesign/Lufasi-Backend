@@ -263,7 +263,7 @@ async function verifyPayment(req, res, next) {
 
     // Get booking
     const booking = await db.Booking.findByPk(payment.bookingId, {
-      include: [db.GuestDirectory, db.BookingGuest],
+      include: [db.GuestDirectory, db.BookingGuest, db.Pod],
     });
 
     // Update payment and booking based on verification result

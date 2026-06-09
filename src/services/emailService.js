@@ -211,7 +211,7 @@ class EmailService {
         .replace(/{{checkInDate}}/g, checkInDate)
         .replace(/{{checkOutDate}}/g, checkOutDate)
         .replace(/{{nights}}/g, nights)
-        .replace(/{{mealPlan}}/g, booking.mealPlan || "Full board")
+        .replace(/{{mealPlan}}/g, booking.mealPlan || (booking.boardType === "halfBoard" ? "Half Board" : "All Inclusive"))
         .replace(/{{visitors}}/g, visitors)
         .replace(/{{adults}}/g, adults)
         .replace(/{{children}}/g, children)
@@ -273,7 +273,7 @@ class EmailService {
         .replace(/{{checkInDate}}/g, checkInDate)
         .replace(/{{checkOutDate}}/g, checkOutDate)
         .replace(/{{nights}}/g, nights)
-        .replace(/{{mealPlan}}/g, booking.mealPlan || "Full board")
+        .replace(/{{mealPlan}}/g, booking.mealPlan || (booking.boardType === "halfBoard" ? "Half Board" : "All Inclusive"))
         .replace(/{{visitors}}/g, visitors)
         .replace(/{{adults}}/g, adults)
         .replace(/{{children}}/g, children)
@@ -665,7 +665,7 @@ class EmailService {
                 </tr>
                 <tr>
                   <td style="color: #666; font-size: 14px;">Meal Plan:</td>
-                  <td style="color: #333; font-weight: 600; font-size: 14px;">${booking.mealPlan || booking.boardType || "N/A"}</td>
+                  <td style="color: #333; font-weight: 600; font-size: 14px;">${booking.mealPlan || (booking.boardType === "halfBoard" ? "Half Board" : booking.boardType === "fullBoard" ? "All Inclusive" : "N/A")}</td>
                 </tr>
               </table>
             </td>

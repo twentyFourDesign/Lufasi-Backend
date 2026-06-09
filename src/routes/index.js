@@ -11,6 +11,7 @@ const paymentRoutes = require("./payments");
 const adminRoutes = require("./admin");
 const uploadRoutes = require("./uploads");
 const configRoutes = require("./config");
+const channexRoutes = require("./channex");
 
 function registerRoutes(app) {
     // Public routes
@@ -25,6 +26,7 @@ function registerRoutes(app) {
     app.use("/payments", paymentRoutes);
     app.use("/uploads", uploadRoutes);
     app.use("/config", configRoutes);
+    app.use("/channex", channexRoutes);
 
     // Admin protected routes
     app.use("/admin", adminRoutes);

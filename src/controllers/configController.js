@@ -95,6 +95,8 @@ async function updatePricingConfiguration(req, res, next) {
       await config.save();
     }
 
+    scheduleChannexAriPush("pricing-save");
+
     res.json(buildPricingResponse(config));
   } catch (err) {
     next(err);
@@ -203,6 +205,13 @@ async function getPeakRates(req, res, next) {
   }
 }
 
+function scheduleChannexAriPush(reason) {
+  const { triggerAriPush } = require("../services/channexAriService");
+  triggerAriPush({ idempotencyKey: `${reason}:${Date.now()}` }).catch((err) =>
+    console.error("[Channex] ARI push failed:", err.message),
+  );
+}
+
 async function createPeakRate(req, res, next) {
   try {
     const { name, startDate, endDate, percentageAdjustment, isActive } = req.body;
@@ -237,6 +246,8 @@ async function createPeakRate(req, res, next) {
       percentageAdjustment: pct,
       isActive: isActive !== false,
     });
+
+    scheduleChannexAriPush("peak-rate-create");
 
     res.status(201).json({
       id: rate.id,
@@ -282,6 +293,8 @@ async function updatePeakRate(req, res, next) {
       ...(isActive !== undefined && { isActive }),
     });
 
+    scheduleChannexAriPush("peak-rate-update");
+
     res.json({
       id: rate.id,
       name: rate.name,
@@ -302,6 +315,7 @@ async function deletePeakRate(req, res, next) {
     if (!rate) return res.status(404).json({ error: "Peak rate not found" });
 
     await rate.destroy();
+    scheduleChannexAriPush("peak-rate-delete");
     res.json({ message: "Peak rate deleted successfully" });
   } catch (err) {
     next(err);

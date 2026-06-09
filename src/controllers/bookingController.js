@@ -14,6 +14,15 @@ const {
   isFamilyCompositionAllowed,
   getMaxPopUpBeds,
 } = require("../utils/familyRules");
+const { hasCapacityForStay } = require("../services/inventoryService");
+const { withAdvisoryLock, INVENTORY_LOCK_KEY } = require("../utils/advisoryLock");
+const { triggerAriPushForStay } = require("../services/channexAriService");
+
+function scheduleChannexSync(checkIn, checkOut) {
+  triggerAriPushForStay(checkIn, checkOut).catch((err) => {
+    console.error("[Channex] Post-booking ARI sync failed:", err.message);
+  });
+}
 
 // Helper to generate booking reference
 function genRef() {
@@ -345,11 +354,10 @@ async function createBooking(req, res, next) {
       });
     }
 
-    const capacityOk = await hasPodCapacity({
+    const capacityOk = await hasCapacityForStay({
       checkIn: bookingData.checkIn,
       checkOut: bookingData.checkOut,
       podsRequested,
-      config: pricingConfig,
     });
 
     if (!capacityOk) {
@@ -567,6 +575,25 @@ async function createBooking(req, res, next) {
       });
     }
 
+    // Final atomic capacity check under advisory lock to prevent oversell
+    const lockResult = await withAdvisoryLock(
+      db.sequelize,
+      INVENTORY_LOCK_KEY,
+      async () => {
+        const ok = await hasCapacityForStay({
+          checkIn: bookingData.checkIn,
+          checkOut: bookingData.checkOut,
+          podsRequested,
+        });
+        return { ok };
+      },
+    );
+    if (!lockResult.ok) {
+      return res.status(400).json({
+        error: "Not enough pods available for the selected dates.",
+      });
+    }
+
     const bookingRef = genRef();
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
 
@@ -746,6 +773,8 @@ async function createBooking(req, res, next) {
         rawData: { note: "Zero amount booking" },
       });
 
+      scheduleChannexSync(bookingData.checkIn, bookingData.checkOut);
+
       return res.json({
         bookingId: booking.id,
         bookingReference: bookingRef,
@@ -758,6 +787,8 @@ async function createBooking(req, res, next) {
         isConfirmed: true,
       });
     }
+
+    scheduleChannexSync(bookingData.checkIn, bookingData.checkOut);
 
     res.json({
       bookingId: booking.id,
@@ -835,6 +866,8 @@ async function blockRoom(req, res, next) {
       });
     }
 
+    scheduleChannexSync(date, date);
+
     res.json({ success: true, message: "Room blocked successfully" });
   } catch (err) {
     next(err);
@@ -849,6 +882,8 @@ async function unblockRoom(req, res, next) {
     await db.CalendarAvailability.destroy({
       where: { podId, date, status: "blocked" }
     });
+
+    scheduleChannexSync(date, date);
 
     res.json({ success: true, message: "Room unblocked successfully" });
   } catch (err) {
@@ -1505,6 +1540,8 @@ async function cancelBooking(req, res, next) {
     );
 
     await t.commit();
+
+    scheduleChannexSync(booking.checkIn, booking.checkOut);
 
     // Send cancellation email asynchronously
     if (booking.GuestDirectory?.email) {

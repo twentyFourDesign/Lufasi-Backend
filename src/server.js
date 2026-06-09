@@ -8,6 +8,8 @@ const {
 } = require("./utils/ensureExtrasCategoryColumns");
 const { ensureWeekdayPeakColumns } = require("./utils/ensureWeekdayPeakColumns");
 const { ensureWeekdayPriceColumns } = require("./utils/ensureWeekdayPriceColumns");
+const { ensureChannexTables } = require("./utils/ensureChannexTables");
+const { startScheduler } = require("./jobs/scheduler");
 
 const PORT = process.env.PORT || 4000;
 
@@ -22,6 +24,7 @@ async function init() {
       await ensureExtrasCategoryColumns(db.sequelize);
       await ensureWeekdayPeakColumns(db.sequelize);
       await ensureWeekdayPriceColumns(db.sequelize);
+      await ensureChannexTables(db.sequelize);
     } catch (schemaErr) {
       console.error(
         "[init] Failed to ensure schema columns:",
@@ -32,6 +35,8 @@ async function init() {
     console.log("Database synced.");
 
 
+
+    startScheduler();
 
     app.listen(PORT, () => {
       console.log(`Server started on port ${PORT}`);

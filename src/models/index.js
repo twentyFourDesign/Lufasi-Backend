@@ -30,6 +30,8 @@ db.PaymentToken = require("./paymentToken")(sequelize, Sequelize);
 db.PricingConfiguration = require("./pricingConfiguration")(sequelize, Sequelize);
 db.SchoolHoliday = require("./schoolHoliday")(sequelize, Sequelize);
 db.PeakRate = require("./peakRate")(sequelize, Sequelize);
+db.ChannexBookingMap = require("./channexBookingMap")(sequelize, Sequelize);
+db.ChannexSyncLog = require("./channexSyncLog")(sequelize, Sequelize);
 
 // Associations
 db.Property.hasMany(db.Pod, { foreignKey: "propertyId" });
@@ -74,5 +76,7 @@ db.PaymentToken.belongsTo(db.Booking, { foreignKey: "bookingId" });
 db.Booking.belongsTo(db.Voucher, { foreignKey: "voucherId" });
 db.Voucher.hasMany(db.Booking, { foreignKey: "voucherId" });
 
+db.Booking.hasOne(db.ChannexBookingMap, { foreignKey: "bookingId" });
+db.ChannexBookingMap.belongsTo(db.Booking, { foreignKey: "bookingId" });
 
 module.exports = db;

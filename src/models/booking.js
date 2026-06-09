@@ -138,6 +138,12 @@ module.exports = (sequelize) => {
         field: "welcome_note",
       },
       expiresAt: { type: DataTypes.DATE, allowNull: true },
+      bookingSource: {
+        type: DataTypes.STRING(50),
+        allowNull: true,
+        defaultValue: "direct",
+        field: "booking_source",
+      },
     },
     { tableName: "bookings" },
   );

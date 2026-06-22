@@ -17,6 +17,8 @@ const {
 const { hasCapacityForStay } = require("../services/inventoryService");
 const { withAdvisoryLock, INVENTORY_LOCK_KEY } = require("../utils/advisoryLock");
 const { triggerAriPushForStay } = require("../services/channexAriService");
+const { getActiveCalendarRows } = require("../utils/inventoryHolds");
+const { iterStayNights, toYmd } = require("../utils/weekdayPeakPricing");
 
 function scheduleChannexSync(checkIn, checkOut) {
   triggerAriPushForStay(checkIn, checkOut).catch((err) => {
@@ -142,23 +144,14 @@ async function getAvailablePodIdsForDates({ checkIn, checkOut }) {
     return [];
   }
 
-  const datesArr = [];
-  for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
-    datesArr.push(new Date(d).toISOString().slice(0, 10));
-  }
+  const datesArr = iterStayNights(checkIn, checkOut).map((d) => toYmd(d));
 
-  const [pods, occupiedRows] = await Promise.all([
+  const [pods, activeRows] = await Promise.all([
     db.Pod.findAll({ attributes: ["id"] }),
-    db.CalendarAvailability.findAll({
-      attributes: ["podId"],
-      where: {
-        date: { [db.Sequelize.Op.in]: datesArr },
-        status: { [db.Sequelize.Op.in]: ["booked", "blocked"] },
-      },
-    }),
+    getActiveCalendarRows({ dates: datesArr }),
   ]);
 
-  const occupiedPodIds = new Set(occupiedRows.map((row) => row.podId));
+  const occupiedPodIds = new Set(activeRows.map((row) => row.podId));
   return pods
     .map((pod) => pod.id)
     .filter((podId) => !occupiedPodIds.has(podId));
@@ -196,6 +189,7 @@ async function createBooking(req, res, next) {
       dates,
       contact,
       podId,
+      podIds: podIdsFromPayload,
       boardType = "fullBoard",
       guests,
       popUpBeds = 0,
@@ -250,17 +244,12 @@ async function createBooking(req, res, next) {
         error: "Missing required booking fields",
         required: [
           "guest/contact info",
-          "podId/pod",
+          "podId or podIds",
           "checkIn/dates.checkIn",
           "checkOut/dates.checkOut",
         ],
       });
     }
-
-    const requestedPodRecord = await db.Pod.findByPk(bookingData.podId, {
-      include: ["priceRules"],
-    });
-    if (!requestedPodRecord) return res.status(404).json({ error: "Pod not found" });
 
     // Age Verification (18+)
     if (bookingData.contact && bookingData.contact.dateOfBirth) {
@@ -372,22 +361,51 @@ async function createBooking(req, res, next) {
       checkIn: bookingData.checkIn,
       checkOut: bookingData.checkOut,
     });
-    const requestedPodIsAvailable = availablePodIds.includes(bookingData.podId);
-    const resolvedPodId = requestedPodIsAvailable
-      ? bookingData.podId
-      : availablePodIds[0];
 
-    if (!resolvedPodId) {
+    const explicitPodIds = Array.isArray(podIdsFromPayload)
+      ? [...new Set(podIdsFromPayload.filter(Boolean))]
+      : podId
+        ? [podId]
+        : [];
+
+    if (explicitPodIds.length > 0) {
+      if (explicitPodIds.length !== podsRequested) {
+        return res.status(400).json({
+          error: `Please select exactly ${podsRequested} dome(s). Received ${explicitPodIds.length}.`,
+        });
+      }
+
+      const unavailable = explicitPodIds.filter(
+        (id) => !availablePodIds.includes(id),
+      );
+      if (unavailable.length > 0) {
+        const unavailablePods = await db.Pod.findAll({
+          where: { id: { [db.Sequelize.Op.in]: unavailable } },
+          attributes: ["id", "podName"],
+        });
+        const names = unavailablePods.map((p) => p.podName).join(", ");
+        return res.status(409).json({
+          error: names
+            ? `${names} is no longer available for your selected dates. Please choose another dome.`
+            : "One or more selected domes are no longer available for your selected dates.",
+        });
+      }
+
+      bookingData.podId = explicitPodIds[0];
+      bookingData.podIds = explicitPodIds;
+    } else {
       return res.status(400).json({
-        error: "The selected room is unavailable or has been blocked for the selected dates.",
+        error: "Please select a dome before completing your booking.",
       });
     }
 
-    bookingData.podId = resolvedPodId;
-    const podRecord =
-      resolvedPodId === requestedPodRecord.id
-        ? requestedPodRecord
-        : await db.Pod.findByPk(resolvedPodId, { include: ["priceRules"] });
+    const resolvedPodId = bookingData.podId;
+    const podRecord = await db.Pod.findByPk(resolvedPodId, {
+      include: ["priceRules"],
+    });
+    if (!podRecord) {
+      return res.status(404).json({ error: "Selected pod not found" });
+    }
 
     const peakRateInfo = await getActivePeakRateForDates(
       bookingData.checkIn,
@@ -686,19 +704,8 @@ async function createBooking(req, res, next) {
       }
     }
 
-    // Mark calendar as 'booked' for each date range
-    const start = new Date(bookingData.checkIn);
-    const end = new Date(bookingData.checkOut);
-    for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
-      await db.CalendarAvailability.create({
-        podId: bookingData.podId,
-        date: new Date(d).toISOString().slice(0, 10),
-        status: "booked",
-        bookingId: booking.id,
-      }).catch((e) => {
-        /* ignore duplicates */
-      });
-    }
+    // Pending bookings hold pooled capacity only — physical pod is reserved on payment.
+    // Calendar rows are written in handleSuccessfulPayment when status → confirmed.
 
     // log
     await db.BookingLog.create({

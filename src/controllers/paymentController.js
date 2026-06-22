@@ -4,6 +4,7 @@ const paymentConfig = require("../config/paymentConfig");
 const paystackService = require("../services/paystackService");
 const squadcoService = require("../services/squadcoService");
 const emailService = require("../services/emailService");
+const { writeCalendarForBooking } = require("../utils/calendarBooking");
 
 async function initializePayment(req, res, next) {
   try {
@@ -470,6 +471,9 @@ async function handleSuccessfulPayment(booking, payment, verifyResult) {
     bookingStatus: "confirmed",
     expiresAt: null  // Clear expiration once payment is successful
   });
+
+  // Reserve the physical pod on the calendar (only after payment succeeds)
+  await writeCalendarForBooking(booking);
 
   // Create payment record for admin tracking
   await db.Payment.create({

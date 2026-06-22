@@ -6,8 +6,26 @@
 const db = require("../models");
 const { Op } = require("sequelize");
 const { triggerAriPushForStay } = require("./channexAriService");
+const { isBookingHoldingInventory } = require("../utils/inventoryHolds");
 
 class BookingExpirationService {
+
+    /**
+     * Remove calendar rows tied to bookings that no longer hold inventory.
+     */
+    async cleanupStaleCalendarRows() {
+        const [result] = await db.sequelize.query(`
+            DELETE FROM calendar_availabilities ca
+            USING bookings b
+            WHERE ca."bookingId" = b.id
+              AND ca.status = 'booked'
+              AND (
+                b."bookingStatus" IN ('expired', 'cancelled', 'failed', 'abandoned')
+                OR (b."bookingStatus" = 'pending' AND b."expiresAt" < NOW())
+              )
+        `);
+        return result?.rowCount ?? 0;
+    }
 
     async expireOldBookings() {
         const now = new Date();
@@ -23,6 +41,12 @@ class BookingExpirationService {
         for (const booking of expiredBookings) {
             await this.expireBooking(booking);
             count++;
+        }
+
+        // Safety net: remove any calendar rows the cron may have missed
+        const cleaned = await this.cleanupStaleCalendarRows();
+        if (cleaned > 0) {
+            console.log(`[Expiry] Cleaned ${cleaned} stale calendar row(s)`);
         }
 
         if (count > 0) {

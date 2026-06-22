@@ -5,6 +5,8 @@ const {
   getWeekdayPeakInfoFromConfig,
   calculateStayRoomSubtotal,
 } = require("../utils/weekdayPeakPricing");
+const bookingExpirationService = require("../services/bookingExpirationService");
+const { getActiveCalendarRows } = require("../utils/inventoryHolds");
 
 function generateDatesArray(startDate, endDate) {
   const arr = [];
@@ -32,18 +34,20 @@ async function checkAvailability(req, res, next) {
 
     const dates = generateDatesArray(startDate, endDate);
 
-    const whereClause = {
-      date: { [Op.in]: dates },
-      status: { [Op.in]: ["booked", "blocked"] },
-    };
+    // Self-heal: strip calendar rows from expired unpaid holds before displaying
+    await bookingExpirationService.cleanupStaleCalendarRows();
+    // Also expire stale pending bookings in background (updates status + logs)
+    bookingExpirationService.expireOldBookings().catch((err) => {
+      console.error("[checkAvailability] Background expiry failed:", err.message);
+    });
 
-    if (excludeBookingId) {
-      whereClause.bookingId = { [Op.ne]: excludeBookingId };
-    }
+    const exclusions = await getActiveCalendarRows({
+      dates,
+      excludeBookingId,
+    });
 
-    const [exclusions, pods, peakRateInfo, pricingConfig, seasonalRates] =
+    const [pods, peakRateInfo, pricingConfig, seasonalRates] =
       await Promise.all([
-        db.CalendarAvailability.findAll({ where: whereClause }),
         db.Pod.findAll({
           where: {
             [Op.or]: [{ isDeleted: false }, { isDeleted: null }],
@@ -64,6 +68,8 @@ async function checkAvailability(req, res, next) {
     const formattedPods = pods.map((pod) => {
       const isOccupied = occupiedPodIds.has(pod.id);
       const isAvailable = !isOccupied;
+      const firstImage = pod.images?.[0];
+      const imageUrl = firstImage?.imageUrl || firstImage?.url;
 
       return {
         id: pod.id,
@@ -75,9 +81,11 @@ async function checkAvailability(req, res, next) {
           typeof pod.rules === "string"
             ? pod.rules.split(",").map((tag) => tag.trim())
             : [],
-        img: `${req.protocol}://${req.get(
-          "host",
-        )}/uploads/pods/default-pod.png`,
+        img: imageUrl
+          ? imageUrl.startsWith("http")
+            ? imageUrl
+            : `${req.protocol}://${req.get("host")}${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`
+          : `${req.protocol}://${req.get("host")}/uploads/pods/default-pod.png`,
       };
     });
 

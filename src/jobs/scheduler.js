@@ -43,16 +43,19 @@ async function withCronLock(fn) {
 }
 
 function startScheduler() {
-  // Expire stale pending bookings every 5 minutes
+  // Expire stale pending bookings every 5 minutes.
+  // No advisory lock — must never silently skip (pooler-safe cleanup is internal).
   cron.schedule("*/5 * * * *", () => {
-    withCronLock(async () => {
-      const count = await bookingExpirationService.expireOldBookings();
-      if (count > 0) {
-        console.log(`[Scheduler] Expired ${count} pending bookings`);
-      }
-    }).catch((err) =>
-      console.error("[Scheduler] Expiry job failed:", err.message),
-    );
+    bookingExpirationService
+      .expireOldBookings()
+      .then((count) => {
+        if (count > 0) {
+          console.log(`[Scheduler] Expired ${count} pending bookings`);
+        }
+      })
+      .catch((err) =>
+        console.error("[Scheduler] Expiry job failed:", err.message),
+      );
   });
 
   if (!channexConfig.enabled) {

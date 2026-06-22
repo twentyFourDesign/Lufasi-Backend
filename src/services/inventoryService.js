@@ -4,6 +4,7 @@
 const db = require("../models");
 const { withAdvisoryLock, INVENTORY_LOCK_KEY } = require("../utils/advisoryLock");
 const { iterStayNights, toYmd } = require("../utils/weekdayPeakPricing");
+const { activeBookingWhere } = require("../utils/inventoryHolds");
 
 const ACTIVE_STATUSES = [
   "pending",
@@ -31,11 +32,10 @@ async function getSoldPodsForDate(dateYmd, { transaction } = {}) {
   nextDay.setDate(nextDay.getDate() + 1);
 
   const bookings = await db.Booking.findAll({
-    where: {
-      bookingStatus: { [db.Sequelize.Op.in]: ACTIVE_STATUSES },
+    where: activeBookingWhere({
       checkIn: { [db.Sequelize.Op.lt]: nextDay },
       checkOut: { [db.Sequelize.Op.gt]: date },
-    },
+    }),
     transaction,
   });
 

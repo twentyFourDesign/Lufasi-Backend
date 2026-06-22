@@ -7,6 +7,48 @@ const {
 } = require("../utils/weekdayPeakPricing");
 const bookingExpirationService = require("../services/bookingExpirationService");
 const { getActiveCalendarRows } = require("../utils/inventoryHolds");
+const uploadService = require("../services/uploadService");
+
+function getRequestBaseUrl(req) {
+  return (
+    process.env.APP_BASE_URL?.replace(/\/$/, "") ||
+    `${req.protocol}://${req.get("host")}`
+  );
+}
+
+function pickPodImageRecord(images = []) {
+  if (!images.length) return null;
+  return [...images].sort((a, b) => {
+    if (Boolean(a.isPrimary) !== Boolean(b.isPrimary)) {
+      return a.isPrimary ? -1 : 1;
+    }
+    return (a.sortOrder || 0) - (b.sortOrder || 0);
+  })[0];
+}
+
+function repairImageUrl(url) {
+  if (!url || typeof url !== "string") return url;
+  return url.replace(
+    /(https?:\/\/[^/]+\.(?:com|org|net|io|dev))([a-zA-Z0-9])/,
+    "$1/$2",
+  );
+}
+
+function resolvePodImageUrl(pod, req) {
+  const baseUrl = getRequestBaseUrl(req);
+  const imageRecord = pickPodImageRecord(pod.images || []);
+  const rawUrl = imageRecord?.imageUrl;
+
+  if (rawUrl) {
+    const repaired = repairImageUrl(rawUrl);
+    const fromEnv = uploadService.toFullUrl(repaired);
+    if (fromEnv?.startsWith("http")) return fromEnv;
+    if (repaired.startsWith("http")) return repaired;
+    return `${baseUrl}${repaired.startsWith("/") ? repaired : `/${repaired}`}`;
+  }
+
+  return `${baseUrl}/uploads/pods/default-pod.png`;
+}
 
 function generateDatesArray(startDate, endDate) {
   const arr = [];
@@ -52,7 +94,19 @@ async function checkAvailability(req, res, next) {
           where: {
             [Op.or]: [{ isDeleted: false }, { isDeleted: null }],
           },
-          include: ["images", "priceRules"],
+          include: [
+            {
+              model: db.PodImage,
+              as: "images",
+              separate: true,
+              order: [
+                ["isPrimary", "DESC"],
+                ["sortOrder", "ASC"],
+              ],
+            },
+            "priceRules",
+          ],
+          order: [["podName", "ASC"]],
         }),
         getActivePeakRateForDates(startDate, endDate),
         db.PricingConfiguration.findByPk(1),
@@ -68,9 +122,6 @@ async function checkAvailability(req, res, next) {
     const formattedPods = pods.map((pod) => {
       const isOccupied = occupiedPodIds.has(pod.id);
       const isAvailable = !isOccupied;
-      const firstImage = pod.images?.[0];
-      const imageUrl = firstImage?.imageUrl || firstImage?.url;
-
       return {
         id: pod.id,
         title: pod.podName,
@@ -81,11 +132,7 @@ async function checkAvailability(req, res, next) {
           typeof pod.rules === "string"
             ? pod.rules.split(",").map((tag) => tag.trim())
             : [],
-        img: imageUrl
-          ? imageUrl.startsWith("http")
-            ? imageUrl
-            : `${req.protocol}://${req.get("host")}${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`
-          : `${req.protocol}://${req.get("host")}/uploads/pods/default-pod.png`,
+        img: resolvePodImageUrl(pod, req),
       };
     });
 

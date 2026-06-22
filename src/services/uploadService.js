@@ -85,19 +85,26 @@ const getImageUrl = (subdir, filename) => {
 };
 
 const getFullImageUrl = (subdir, filename) => {
-  const baseUrl = process.env.APP_BASE_URL || "";
+  const baseUrl = (process.env.APP_BASE_URL || "").replace(/\/$/, "");
   const relativePath = subdir
     ? `/uploads/${subdir}/${filename}`
     : `/uploads/${filename}`;
+  if (!baseUrl) return relativePath;
   return `${baseUrl}${relativePath}`;
 };
 
 const toFullUrl = (relativePath) => {
   if (!relativePath) return null;
-  const baseUrl = process.env.APP_BASE_URL || "";
-  // If already a full URL, return as is
-  if (relativePath.startsWith("http")) return relativePath;
-  return `${baseUrl}${relativePath}`;
+  if (relativePath.startsWith("http")) {
+    return relativePath.replace(
+      /(https?:\/\/[^/]+\.(?:com|org|net|io|dev))([a-zA-Z0-9])/,
+      "$1/$2",
+    );
+  }
+  const baseUrl = (process.env.APP_BASE_URL || "").replace(/\/$/, "");
+  const path = relativePath.startsWith("/") ? relativePath : `/${relativePath}`;
+  if (!baseUrl) return path;
+  return `${baseUrl}${path}`;
 };
 
 const getFilePath = (subdir, filename) => {

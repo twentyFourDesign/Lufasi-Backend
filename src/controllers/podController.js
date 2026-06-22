@@ -1,6 +1,10 @@
 const db = require("../models");
 const { v4: uuidv4 } = require("uuid");
 const uploadService = require("../services/uploadService");
+const {
+  formatPodWithImages,
+  formatPodImage,
+} = require("../utils/podImages");
 
 // Create pod with images in single request
 async function createPod(req, res, next) {
@@ -55,15 +59,22 @@ async function createPod(req, res, next) {
       }
     }
 
-    // Return pod with images
     const result = await db.Pod.findByPk(pod.id, {
       include: [
-        { model: db.PodImage, as: "images" },
+        {
+          model: db.PodImage,
+          as: "images",
+          separate: true,
+          order: [
+            ["isPrimary", "DESC"],
+            ["sortOrder", "ASC"],
+          ],
+        },
         "priceRules",
       ],
     });
 
-    res.json({ pod: result });
+    res.json({ pod: formatPodWithImages(result) });
   } catch (err) {
     next(err);
   }
@@ -80,25 +91,21 @@ async function listPods(req, res, next) {
     const pods = await db.Pod.findAll({
       where,
       include: [
-        { model: db.PodImage, as: "images" },
+        {
+          model: db.PodImage,
+          as: "images",
+          separate: true,
+          order: [
+            ["isPrimary", "DESC"],
+            ["sortOrder", "ASC"],
+          ],
+        },
         "priceRules",
       ],
       order: [["podName", "ASC"]],
     });
 
-    // Transform images to include full URLs
-    const podsWithFullUrls = pods.map((pod) => {
-      const podJson = pod.toJSON();
-      if (podJson.images) {
-        podJson.images = podJson.images.map((img) => ({
-          ...img,
-          imageUrl: uploadService.toFullUrl(img.imageUrl),
-        }));
-      }
-      return podJson;
-    });
-
-    res.json({ pods: podsWithFullUrls });
+    res.json({ pods: pods.map(formatPodWithImages) });
   } catch (err) {
     next(err);
   }
@@ -108,22 +115,21 @@ async function getPod(req, res, next) {
   try {
     const pod = await db.Pod.findByPk(req.params.id, {
       include: [
-        { model: db.PodImage, as: "images" },
+        {
+          model: db.PodImage,
+          as: "images",
+          separate: true,
+          order: [
+            ["isPrimary", "DESC"],
+            ["sortOrder", "ASC"],
+          ],
+        },
         "priceRules",
       ],
     });
     if (!pod) return res.status(404).json({ error: "Pod not found" });
 
-    // Transform images to include full URLs
-    const podJson = pod.toJSON();
-    if (podJson.images) {
-      podJson.images = podJson.images.map((img) => ({
-        ...img,
-        imageUrl: uploadService.toFullUrl(img.imageUrl),
-      }));
-    }
-
-    res.json({ pod: podJson });
+    res.json({ pod: formatPodWithImages(pod) });
   } catch (err) {
     next(err);
   }
@@ -152,7 +158,9 @@ async function updatePod(req, res, next) {
 
     // Handle new uploaded images
     if (req.files && req.files.length > 0) {
-      const maxOrder = await db.PodImage.max("sortOrder", { where: { podId: pod.id } }) || 0;
+      const existingCount = await db.PodImage.count({ where: { podId: pod.id } });
+      const maxOrder =
+        (await db.PodImage.max("sortOrder", { where: { podId: pod.id } })) || 0;
 
       for (let i = 0; i < req.files.length; i++) {
         const file = req.files[i];
@@ -163,19 +171,27 @@ async function updatePod(req, res, next) {
           podId: pod.id,
           imageUrl: imageData.imageUrl,
           sortOrder: maxOrder + i + 1,
+          isPrimary: existingCount === 0 && i === 0,
         });
       }
     }
 
-    // Return updated pod with images
     const result = await db.Pod.findByPk(pod.id, {
       include: [
-        { model: db.PodImage, as: "images" },
+        {
+          model: db.PodImage,
+          as: "images",
+          separate: true,
+          order: [
+            ["isPrimary", "DESC"],
+            ["sortOrder", "ASC"],
+          ],
+        },
         "priceRules",
       ],
     });
 
-    res.json({ pod: result });
+    res.json({ pod: formatPodWithImages(result) });
   } catch (err) {
     next(err);
   }
@@ -193,7 +209,9 @@ async function addPodImages(req, res, next) {
       return res.status(400).json({ error: "No images provided" });
     }
 
-    const maxOrder = await db.PodImage.max("sortOrder", { where: { podId } }) || 0;
+    const existingCount = await db.PodImage.count({ where: { podId } });
+    const maxOrder =
+      (await db.PodImage.max("sortOrder", { where: { podId } })) || 0;
     const images = [];
 
     for (let i = 0; i < req.files.length; i++) {
@@ -205,11 +223,15 @@ async function addPodImages(req, res, next) {
         podId,
         imageUrl: imageData.imageUrl,
         sortOrder: maxOrder + i + 1,
+        isPrimary: existingCount === 0 && i === 0,
       });
       images.push(podImage);
     }
 
-    res.json({ success: true, images });
+    res.json({
+      success: true,
+      images: images.map(formatPodImage),
+    });
   } catch (err) {
     next(err);
   }
@@ -248,7 +270,10 @@ async function setPrimaryImage(req, res, next) {
     // Set this one as primary
     await image.update({ isPrimary: true });
 
-    res.json({ message: "Primary image set successfully", image });
+    res.json({
+      message: "Primary image set successfully",
+      image: formatPodImage(image),
+    });
   } catch (err) {
     next(err);
   }

@@ -53,15 +53,23 @@ router.post("/pod/:podId", adminAuth, uploaders.pods.single("image"), async (req
 
         const imageData = processUpload(req.file, "pods");
 
-        // Create pod image record
+        const existingCount = await db.PodImage.count({ where: { podId } });
+        const maxOrder =
+          (await db.PodImage.max("sortOrder", { where: { podId } })) || 0;
+
         const podImage = await db.PodImage.create({
             id: uuidv4(),
             podId,
             imageUrl: imageData.imageUrl,
-            sortOrder: 0,
+            sortOrder: maxOrder + 1,
+            isPrimary: existingCount === 0,
         });
 
-        res.json({ success: true, image: podImage });
+        res.json({
+            success: true,
+            image: uploadService.formatImageRecord(podImage.toJSON()),
+            publicUrl: imageData.publicUrl,
+        });
     } catch (err) {
         next(err);
     }
@@ -145,11 +153,12 @@ router.post("/admin-login-bg", adminAuth, uploaders.branding.single("image"), as
         const uploadedFilePath = path.join(brandingDir, req.file.filename);
         fs.renameSync(uploadedFilePath, targetPath);
 
-        const baseUrl = process.env.APP_BASE_URL || "";
+        const baseUrl = uploadService.getAppBaseUrl();
+        const imagePath = "/uploads/branding/admin-login-bg.png";
         res.json({
             success: true,
             message: "Admin login background updated successfully",
-            imageUrl: `${baseUrl}/uploads/branding/admin-login-bg.png`,
+            imageUrl: baseUrl ? `${baseUrl}${imagePath}` : imagePath,
         });
     } catch (err) {
         next(err);
@@ -192,11 +201,12 @@ router.post("/default-pod", adminAuth, uploaders.pods.single("image"), async (re
         }
         fs.renameSync(uploadedFilePath, defaultPodPath);
 
-        const baseUrl = process.env.APP_BASE_URL || "";
+        const baseUrl = uploadService.getAppBaseUrl();
+        const imagePath = "/uploads/pods/default-pod.png";
         res.json({
             success: true,
             message: "Default pod image updated successfully",
-            imageUrl: `${baseUrl}/uploads/pods/default-pod.png`
+            imageUrl: baseUrl ? `${baseUrl}${imagePath}` : imagePath,
         });
     } catch (err) {
         next(err);

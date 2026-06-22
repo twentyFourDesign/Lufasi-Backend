@@ -8,46 +8,13 @@ const {
 const bookingExpirationService = require("../services/bookingExpirationService");
 const { getActiveCalendarRows } = require("../utils/inventoryHolds");
 const uploadService = require("../services/uploadService");
+const { getPrimaryPodImageUrl } = require("../utils/podImages");
 
 function getRequestBaseUrl(req) {
   return (
-    process.env.APP_BASE_URL?.replace(/\/$/, "") ||
+    uploadService.getAppBaseUrl() ||
     `${req.protocol}://${req.get("host")}`
   );
-}
-
-function pickPodImageRecord(images = []) {
-  if (!images.length) return null;
-  return [...images].sort((a, b) => {
-    if (Boolean(a.isPrimary) !== Boolean(b.isPrimary)) {
-      return a.isPrimary ? -1 : 1;
-    }
-    return (a.sortOrder || 0) - (b.sortOrder || 0);
-  })[0];
-}
-
-function repairImageUrl(url) {
-  if (!url || typeof url !== "string") return url;
-  return url.replace(
-    /(https?:\/\/[^/]+\.(?:com|org|net|io|dev))([a-zA-Z0-9])/,
-    "$1/$2",
-  );
-}
-
-function resolvePodImageUrl(pod, req) {
-  const baseUrl = getRequestBaseUrl(req);
-  const imageRecord = pickPodImageRecord(pod.images || []);
-  const rawUrl = imageRecord?.imageUrl;
-
-  if (rawUrl) {
-    const repaired = repairImageUrl(rawUrl);
-    const fromEnv = uploadService.toFullUrl(repaired);
-    if (fromEnv?.startsWith("http")) return fromEnv;
-    if (repaired.startsWith("http")) return repaired;
-    return `${baseUrl}${repaired.startsWith("/") ? repaired : `/${repaired}`}`;
-  }
-
-  return `${baseUrl}/uploads/pods/default-pod.png`;
 }
 
 function generateDatesArray(startDate, endDate) {
@@ -132,7 +99,9 @@ async function checkAvailability(req, res, next) {
           typeof pod.rules === "string"
             ? pod.rules.split(",").map((tag) => tag.trim())
             : [],
-        img: resolvePodImageUrl(pod, req),
+        img:
+          getPrimaryPodImageUrl(pod) ||
+          `${getRequestBaseUrl(req)}/uploads/pods/default-pod.png`,
       };
     });
 

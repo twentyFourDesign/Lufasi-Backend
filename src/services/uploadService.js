@@ -80,31 +80,80 @@ const createUploader = (subdir = "", options = {}) => {
   });
 };
 
+/** Relative URL stored in the database, e.g. /uploads/pods/<uuid>.jpg */
 const getImageUrl = (subdir, filename) => {
   return subdir ? `/uploads/${subdir}/${filename}` : `/uploads/${filename}`;
 };
 
-const getFullImageUrl = (subdir, filename) => {
-  const baseUrl = (process.env.APP_BASE_URL || "").replace(/\/$/, "");
-  const relativePath = subdir
-    ? `/uploads/${subdir}/${filename}`
-    : `/uploads/${filename}`;
-  if (!baseUrl) return relativePath;
-  return `${baseUrl}${relativePath}`;
+const getAppBaseUrl = () =>
+  (process.env.APP_BASE_URL || "").replace(/\/$/, "");
+
+/** Fix URLs like https://domain.comfile.jpg → https://domain.com/file.jpg */
+const repairImageUrl = (url) => {
+  if (!url || typeof url !== "string") return url;
+  return url.replace(
+    /(https?:\/\/[^/]+\.(?:com|org|net|io|dev))([a-zA-Z0-9])/,
+    "$1/$2",
+  );
 };
 
-const toFullUrl = (relativePath) => {
-  if (!relativePath) return null;
-  if (relativePath.startsWith("http")) {
-    return relativePath.replace(
-      /(https?:\/\/[^/]+\.(?:com|org|net|io|dev))([a-zA-Z0-9])/,
-      "$1/$2",
-    );
+/**
+ * Normalize any stored/public image reference to a relative /uploads/... path.
+ * Returns null when the value cannot be mapped to on-disk storage.
+ */
+const normalizeToRelativePath = (imageUrl) => {
+  if (!imageUrl || typeof imageUrl !== "string") return null;
+
+  let url = repairImageUrl(imageUrl.trim());
+
+  if (url.startsWith("/uploads/")) {
+    return url;
   }
-  const baseUrl = (process.env.APP_BASE_URL || "").replace(/\/$/, "");
-  const path = relativePath.startsWith("/") ? relativePath : `/${relativePath}`;
-  if (!baseUrl) return path;
-  return `${baseUrl}${path}`;
+
+  const uploadsMatch = url.match(/\/uploads\/(.+)$/i);
+  if (uploadsMatch) {
+    return `/uploads/${uploadsMatch[1]}`;
+  }
+
+  if (url.startsWith("http")) {
+    // Legacy bare filenames at domain root (not on disk) — cannot delete
+    const bareName = url.split("/").pop();
+    if (bareName && /\.(jpe?g|png|gif|webp)$/i.test(bareName)) {
+      const candidate = path.join(UPLOADS_DIR, "pods", bareName);
+      if (fs.existsSync(candidate)) {
+        return `/uploads/pods/${bareName}`;
+      }
+    }
+    return null;
+  }
+
+  if (url.startsWith("/")) {
+    return url;
+  }
+
+  // Bare filename
+  if (/\.(jpe?g|png|gif|webp)$/i.test(url)) {
+    return `/uploads/pods/${url}`;
+  }
+
+  return null;
+};
+
+/** Build a public absolute URL from a stored relative path or legacy value. */
+const toFullUrl = (imageUrl) => {
+  if (!imageUrl) return null;
+
+  const repaired = repairImageUrl(imageUrl);
+  if (repaired.startsWith("http")) {
+    return repaired;
+  }
+
+  const relative = normalizeToRelativePath(repaired) || repaired;
+  const baseUrl = getAppBaseUrl();
+  const normalizedPath = relative.startsWith("/") ? relative : `/${relative}`;
+
+  if (!baseUrl) return normalizedPath;
+  return `${baseUrl}${normalizedPath}`;
 };
 
 const getFilePath = (subdir, filename) => {
@@ -115,9 +164,15 @@ const getFilePath = (subdir, filename) => {
 
 const deleteFile = (imageUrl) => {
   try {
-    // Remove leading /uploads/ to get relative path
-    const relativePath = imageUrl.replace(/^\/uploads\/?/, "");
-    const filePath = path.join(UPLOADS_DIR, relativePath);
+    const relativePath = normalizeToRelativePath(imageUrl);
+    if (!relativePath) {
+      return false;
+    }
+
+    const filePath = path.join(
+      UPLOADS_DIR,
+      relativePath.replace(/^\/uploads\/?/, ""),
+    );
 
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
@@ -130,10 +185,16 @@ const deleteFile = (imageUrl) => {
   }
 };
 
+/**
+ * Process a multer file — stores a relative path suitable for the database.
+ * Use toFullUrl() when returning URLs to clients.
+ */
 const processUpload = (file, subdir = "") => {
   if (!file) return null;
+  const relativeUrl = getImageUrl(subdir, file.filename);
   return {
-    imageUrl: getFullImageUrl(subdir, file.filename),
+    imageUrl: relativeUrl,
+    publicUrl: toFullUrl(relativeUrl),
     filename: file.filename,
     originalName: file.originalname,
     size: file.size,
@@ -144,6 +205,14 @@ const processUpload = (file, subdir = "") => {
 const processMultipleUploads = (files, subdir = "") => {
   if (!files || !files.length) return [];
   return files.map((file) => processUpload(file, subdir));
+};
+
+const formatImageRecord = (imageJson) => {
+  if (!imageJson) return imageJson;
+  return {
+    ...imageJson,
+    imageUrl: toFullUrl(imageJson.imageUrl),
+  };
 };
 
 const uploadToCloudinary = async (filePath, options = {}) => {
@@ -199,12 +268,15 @@ module.exports = {
   createStorage,
   ensureSubdir,
   getImageUrl,
-  getFullImageUrl,
+  getAppBaseUrl,
+  repairImageUrl,
+  normalizeToRelativePath,
   toFullUrl,
   getFilePath,
   deleteFile,
   processUpload,
   processMultipleUploads,
+  formatImageRecord,
   uploadToCloudinary,
   uploaders,
   imageFilter,

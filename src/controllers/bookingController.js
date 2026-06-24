@@ -1320,6 +1320,7 @@ async function sendConfirmation(req, res, next) {
         { model: db.GuestDirectory },
         { model: db.Pod },
         { model: db.BookingGuest },
+        { model: db.BookingExtra, include: [{ model: db.Extra }] },
       ],
     });
 
@@ -1360,6 +1361,8 @@ async function resendInvoice(req, res, next) {
       include: [
         { model: db.GuestDirectory },
         { model: db.Pod },
+        { model: db.BookingGuest },
+        { model: db.BookingExtra, include: [{ model: db.Extra }] },
         { model: db.BookingPayment },
       ],
     });

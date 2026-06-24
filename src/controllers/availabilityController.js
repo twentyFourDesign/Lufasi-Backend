@@ -105,6 +105,15 @@ async function checkAvailability(req, res, next) {
       };
     });
 
+    formattedPods.sort((a, b) => {
+      const num = (desc) => {
+        const m = (desc || "").match(/Dome\s*#\s*(\d+)/i);
+        return m ? Number(m[1]) : 999;
+      };
+      const diff = num(a.desc) - num(b.desc);
+      return diff !== 0 ? diff : (a.title || "").localeCompare(b.title || "");
+    });
+
     const weekdayPeakInfo = getWeekdayPeakInfoFromConfig();
     const stayPreview = calculateStayRoomSubtotal({
       checkIn: startDate,

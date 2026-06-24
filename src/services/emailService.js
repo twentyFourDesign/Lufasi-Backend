@@ -1,9 +1,128 @@
 
-
 const nodemailer = require("nodemailer");
 const fs = require("fs");
 const path = require("path");
 const emailConfig = require("../config/emailConfig");
+
+/** Selected dome name(s) for emails — prefers guest's domeDetails, then primary Pod. */
+function getBookingRoomLabel(booking, pod) {
+  const details = booking?.domeDetails;
+  if (Array.isArray(details) && details.length > 0) {
+    const names = details
+      .map((d) => d?.podName || d?.pod_name)
+      .filter(Boolean);
+    if (names.length > 0) return names.join(", ");
+  }
+  if (booking?.Pod?.podName) return booking.Pod.podName;
+  return pod?.podName || pod?.title || "Lufasi Lodge";
+}
+
+function getBookingGuestRow(booking) {
+  const rows = booking?.BookingGuests;
+  if (Array.isArray(rows) && rows.length > 0) return rows[0];
+  if (booking?.BookingGuest) return booking.BookingGuest;
+  return null;
+}
+
+function getBookingGuestCounts(booking) {
+  const row = getBookingGuestRow(booking);
+  if (row) {
+    return {
+      adults: Number(row.adults) || 0,
+      children: Number(row.children) || 0,
+      toddlers: Number(row.toddlers) || 0,
+      infants: Number(row.infants) || 0,
+    };
+  }
+
+  if (booking?.guests && typeof booking.guests === "object") {
+    const g = booking.guests;
+    return {
+      adults: Number(g.adults || 0) + Number(g.teenagers || 0),
+      children: Number(g.children) || 0,
+      toddlers: Number(g.toddlers) || 0,
+      infants: Number(g.infants) || 0,
+    };
+  }
+
+  return {
+    adults: Number(booking?.adults) || 0,
+    children: Number(booking?.children) || 0,
+    toddlers: Number(booking?.toddlers) || 0,
+    infants: Number(booking?.infants) || 0,
+  };
+}
+
+function formatGuestCountSummary(booking) {
+  const { adults, children, toddlers, infants } = getBookingGuestCounts(booking);
+  const parts = [];
+  if (adults > 0) parts.push(`${adults} Adult${adults === 1 ? "" : "s"}`);
+  if (children > 0) parts.push(`${children} Child${children === 1 ? "" : "ren"}`);
+  if (toddlers > 0) parts.push(`${toddlers} Toddler${toddlers === 1 ? "" : "s"}`);
+  if (infants > 0) parts.push(`${infants} Infant${infants === 1 ? "" : "s"}`);
+  return parts.length > 0 ? parts.join(", ") : "1 Adult";
+}
+
+function getBookingExtrasRows(booking) {
+  return booking?.BookingExtras || [];
+}
+
+function formatBookingExtrasLabel(booking) {
+  const rows = getBookingExtrasRows(booking);
+  if (rows.length > 0) {
+    const labels = rows
+      .map((be) => {
+        const name = be.Extra?.name || be.name || "Extra";
+        const qty = Number(be.quantity) > 1 ? ` (x${be.quantity})` : "";
+        return `${name}${qty}`;
+      })
+      .filter(Boolean);
+    if (labels.length > 0) return labels.join(", ");
+  }
+
+  if (typeof booking?.extras === "string" && booking.extras.trim()) {
+    return booking.extras.trim();
+  }
+
+  if (Array.isArray(booking?.extras) && booking.extras.length > 0) {
+    return booking.extras
+      .map((ex) => {
+        const name = ex.name || ex.title || "Extra";
+        const qty = Number(ex.quantity) > 1 ? ` (x${ex.quantity})` : "";
+        return `${name}${qty}`;
+      })
+      .join(", ");
+  }
+
+  return "None";
+}
+
+function getBookingExtrasAmount(booking) {
+  const rows = getBookingExtrasRows(booking);
+  if (rows.length > 0) {
+    return rows.reduce((sum, be) => sum + parseFloat(be.totalPrice || 0), 0);
+  }
+  if (booking?.priceSnapshotExtra != null) {
+    return parseFloat(booking.priceSnapshotExtra) || 0;
+  }
+  return parseFloat(booking?.extrasAmount || 0) || 0;
+}
+
+function getBookingMealPlanLabel(booking) {
+  if (booking?.mealPlan && typeof booking.mealPlan === "object") {
+    return booking.mealPlan.title || "Full Board";
+  }
+  if (typeof booking?.mealPlan === "string" && booking.mealPlan.trim()) {
+    return booking.mealPlan;
+  }
+  return booking?.boardType === "halfBoard" ? "Half Board" : "Full Board";
+}
+
+function getBookingTotalVisitors(booking) {
+  const { adults, children, toddlers, infants } = getBookingGuestCounts(booking);
+  const total = adults + children + toddlers + infants;
+  return total > 0 ? `${total} Guest${total === 1 ? "" : "s"}` : "1 Guest";
+}
 
 class EmailService {
   constructor() {
@@ -192,30 +311,32 @@ class EmailService {
       const totalPrice = parseFloat(booking.totalPrice || 0);
       const subTotal = totalPrice * 0.9; // Approximate
       const vat = totalPrice * 0.075; // 7.5% VAT
-      const extrasAmount = parseFloat(booking.extrasAmount || 0);
+      const extrasAmount = getBookingExtrasAmount(booking);
       const discount = parseFloat(booking.discount || 0);
 
-      // Guest counts
-      const adults = booking.adults || 1;
-      const children = booking.children || 0;
-      const infants = booking.infants || 0;
-      const visitors = `${adults + children + infants} Guests`;
+      const guestCounts = getBookingGuestCounts(booking);
+      const adults = guestCounts.adults;
+      const children = guestCounts.children;
+      const infants = guestCounts.infants;
+      const visitors = getBookingTotalVisitors(booking);
+      const extrasLabel = formatBookingExtrasLabel(booking);
 
       // Get base URL from environment
       const appBaseUrl = process.env.APP_BASE_URL;
 
       // Replace placeholders
+      const roomLabel = getBookingRoomLabel(booking, pod);
       html = html.replace(/{{bookingReference}}/g, booking.bookingReference)
         .replace(/{{guestName}}/g, guest.fullName)
-        .replace(/{{podName}}/g, pod?.title || pod?.podName || "Lufasi Lodge")
+        .replace(/{{podName}}/g, roomLabel)
         .replace(/{{checkInDate}}/g, checkInDate)
         .replace(/{{checkOutDate}}/g, checkOutDate)
         .replace(/{{nights}}/g, nights)
-        .replace(/{{mealPlan}}/g, booking.mealPlan || "All Inclusive")
+        .replace(/{{mealPlan}}/g, getBookingMealPlanLabel(booking))
         .replace(/{{visitors}}/g, visitors)
         .replace(/{{adults}}/g, adults)
         .replace(/{{children}}/g, children)
-        .replace(/{{extras}}/g, booking.extras || "N/A")
+        .replace(/{{extras}}/g, extrasLabel)
         .replace(/{{subTotal}}/g, subTotal.toLocaleString())
         .replace(/{{discount}}/g, discount.toLocaleString())
         .replace(/{{extrasAmount}}/g, extrasAmount.toLocaleString())
@@ -253,31 +374,33 @@ class EmailService {
       const totalPrice = parseFloat(booking.totalPrice || 0);
       const subTotal = totalPrice * 0.9; // Approximate
       const vat = totalPrice * 0.075; // 7.5% VAT
-      const extrasAmount = parseFloat(booking.extrasAmount || 0);
+      const extrasAmount = getBookingExtrasAmount(booking);
       const discount = parseFloat(booking.discount || 0);
 
-      // Guest counts
-      const adults = booking.adults || 1;
-      const children = booking.children || 0;
-      const infants = booking.infants || 0;
-      const visitors = `${adults + children + infants} Guests`;
+      const guestCounts = getBookingGuestCounts(booking);
+      const adults = guestCounts.adults;
+      const children = guestCounts.children;
+      const infants = guestCounts.infants;
+      const visitors = getBookingTotalVisitors(booking);
+      const extrasLabel = formatBookingExtrasLabel(booking);
 
       // Get base URL from environment
       const appBaseUrl = process.env.APP_BASE_URL || "https://lufasilodges.com";
 
       // Replace placeholders
+      const roomLabel = getBookingRoomLabel(booking, pod);
       html = html.replace(/{{bookingReference}}/g, booking.bookingReference)
         .replace(/{{guestName}}/g, guest.fullName)
         .replace(/{{guestEmail}}/g, guest.email)
-        .replace(/{{podName}}/g, pod?.title || pod?.podName || "Lufasi Lodge")
+        .replace(/{{podName}}/g, roomLabel)
         .replace(/{{checkInDate}}/g, checkInDate)
         .replace(/{{checkOutDate}}/g, checkOutDate)
         .replace(/{{nights}}/g, nights)
-        .replace(/{{mealPlan}}/g, booking.mealPlan || "All Inclusive")
+        .replace(/{{mealPlan}}/g, getBookingMealPlanLabel(booking))
         .replace(/{{visitors}}/g, visitors)
         .replace(/{{adults}}/g, adults)
         .replace(/{{children}}/g, children)
-        .replace(/{{extras}}/g, booking.extras || "N/A")
+        .replace(/{{extras}}/g, extrasLabel)
         .replace(/{{subTotal}}/g, subTotal.toLocaleString())
         .replace(/{{discount}}/g, discount.toLocaleString())
         .replace(/{{extrasAmount}}/g, extrasAmount.toLocaleString())
@@ -299,6 +422,7 @@ class EmailService {
     const paymentDate = new Date().toLocaleDateString("en-US", {
       weekday: "short", day: "numeric", month: "long", year: "numeric"
     });
+    const roomLabel = getBookingRoomLabel(booking, booking?.Pod);
 
     return `<!DOCTYPE html>
 <html>
@@ -386,6 +510,21 @@ class EmailService {
                       <td>
                         <div style="color: #888; font-size: 11px; text-transform: uppercase; margin-bottom: 4px;">Transaction Reference</div>
                         <div style="color: #333; font-weight: 600; font-size: 15px;">${payment?.transactionReference || "N/A"}</div>
+                      </td>
+                    </tr>
+                  </table>
+                </div>
+
+                <!-- Your Pod -->
+                <div style="margin-bottom: 12px; background: #fff; border: 1px solid #f0f0f0; border-radius: 10px; padding: 14px;">
+                  <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td width="40" valign="top">
+                        <span style="font-size: 20px;">🏡</span>
+                      </td>
+                      <td>
+                        <div style="color: #888; font-size: 11px; text-transform: uppercase; margin-bottom: 4px;">Your Pod</div>
+                        <div style="color: #333; font-weight: 600; font-size: 15px;">${roomLabel}</div>
                       </td>
                     </tr>
                   </table>
@@ -575,9 +714,10 @@ class EmailService {
     const nights = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24)) || 1;
 
     const totalPrice = parseFloat(booking.totalPrice || 0);
-    const adults = booking.adults || 1;
-    const children = booking.children || 0;
-    const infants = booking.infants || 0;
+    const guestSummary = formatGuestCountSummary(booking);
+    const extrasLabel = formatBookingExtrasLabel(booking);
+    const roomLabel = getBookingRoomLabel(booking, pod);
+    const mealPlanLabel = getBookingMealPlanLabel(booking);
 
     return `<!DOCTYPE html>
 <html>
@@ -645,7 +785,7 @@ class EmailService {
               <table width="100%" cellpadding="8" cellspacing="0">
                 <tr>
                   <td style="color: #666; font-size: 14px; width: 40%;">Pod:</td>
-                  <td style="color: #333; font-weight: 600; font-size: 14px;">${pod?.title || pod?.podName || "N/A"}</td>
+                  <td style="color: #333; font-weight: 600; font-size: 14px;">${roomLabel}</td>
                 </tr>
                 <tr>
                   <td style="color: #666; font-size: 14px;">Check-in:</td>
@@ -661,11 +801,15 @@ class EmailService {
                 </tr>
                 <tr>
                   <td style="color: #666; font-size: 14px;">Guests:</td>
-                  <td style="color: #333; font-weight: 600; font-size: 14px;">${adults} Adults, ${children} Children, ${infants} Infants</td>
+                  <td style="color: #333; font-weight: 600; font-size: 14px;">${guestSummary}</td>
                 </tr>
                 <tr>
                   <td style="color: #666; font-size: 14px;">Meal Plan:</td>
-                  <td style="color: #333; font-weight: 600; font-size: 14px;">${booking.mealPlan || "All Inclusive"}</td>
+                  <td style="color: #333; font-weight: 600; font-size: 14px;">${mealPlanLabel}</td>
+                </tr>
+                <tr>
+                  <td style="color: #666; font-size: 14px; vertical-align: top;">Extras:</td>
+                  <td style="color: #333; font-weight: 600; font-size: 14px;">${extrasLabel}</td>
                 </tr>
               </table>
             </td>
@@ -718,12 +862,13 @@ class EmailService {
     const nights = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24)) || 1;
 
     const totalPrice = parseFloat(booking.totalPrice || 0);
-    const adults = booking.adults || 1;
-    const children = booking.children || 0;
-    const infants = booking.infants || 0;
+    const guestSummary = formatGuestCountSummary(booking);
+    const extrasLabel = formatBookingExtrasLabel(booking);
     const cancelledAt = new Date().toLocaleDateString("en-US", {
       weekday: "short", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit"
     });
+    const roomLabel = getBookingRoomLabel(booking, pod);
+    const mealPlanLabel = getBookingMealPlanLabel(booking);
 
     return `<!DOCTYPE html>
 <html>
@@ -800,7 +945,7 @@ class EmailService {
               <table width="100%" cellpadding="8" cellspacing="0">
                 <tr>
                   <td style="color: #666; font-size: 14px; width: 40%;">Pod:</td>
-                  <td style="color: #333; font-weight: 600; font-size: 14px;">${pod?.title || pod?.podName || "N/A"}</td>
+                  <td style="color: #333; font-weight: 600; font-size: 14px;">${roomLabel}</td>
                 </tr>
                 <tr>
                   <td style="color: #666; font-size: 14px;">Check-in:</td>
@@ -816,7 +961,11 @@ class EmailService {
                 </tr>
                 <tr>
                   <td style="color: #666; font-size: 14px;">Guests:</td>
-                  <td style="color: #333; font-weight: 600; font-size: 14px;">${adults} Adults, ${children} Children, ${infants} Infants</td>
+                  <td style="color: #333; font-weight: 600; font-size: 14px;">${guestSummary}</td>
+                </tr>
+                <tr>
+                  <td style="color: #666; font-size: 14px; vertical-align: top;">Extras:</td>
+                  <td style="color: #333; font-weight: 600; font-size: 14px;">${extrasLabel}</td>
                 </tr>
                 <tr>
                   <td style="color: #666; font-size: 14px;">Total Amount:</td>

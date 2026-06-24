@@ -491,23 +491,34 @@ async function handleSuccessfulPayment(booking, payment, verifyResult) {
     newStatus: "confirmed",
   });
 
-  // Get pod info for confirmation email
-  const pod = await db.Pod.findByPk(booking.podId);
+  // Load full booking relations for accurate confirmation emails
+  const emailBooking = await db.Booking.findByPk(booking.id, {
+    include: [
+      { model: db.GuestDirectory },
+      { model: db.BookingGuest },
+      { model: db.BookingExtra, include: [{ model: db.Extra }] },
+      { model: db.Pod },
+    ],
+  }) || booking;
+
+  const pod = emailBooking.Pod || (emailBooking.podId
+    ? await db.Pod.findByPk(emailBooking.podId)
+    : null);
 
   // Ensure GuestDirectory is loaded
-  let guest = booking.GuestDirectory;
-  if (!guest && booking.guestDirectoryId) {
-    guest = await db.GuestDirectory.findByPk(booking.guestDirectoryId);
-    booking.GuestDirectory = guest;
+  let guest = emailBooking.GuestDirectory;
+  if (!guest && emailBooking.guestDirectoryId) {
+    guest = await db.GuestDirectory.findByPk(emailBooking.guestDirectoryId);
+    emailBooking.GuestDirectory = guest;
   }
 
   // Send emails (awaited to ensure delivery in serverless environments)
   if (guest) {
     try {
       const results = await Promise.allSettled([
-        emailService.sendBookingConfirmation(booking, guest, pod),
-        emailService.sendPaymentSuccess(booking, guest, payment),
-        emailService.sendAdminBookingAlert(booking, guest, pod)
+        emailService.sendBookingConfirmation(emailBooking, guest, pod),
+        emailService.sendPaymentSuccess(emailBooking, guest, payment),
+        emailService.sendAdminBookingAlert(emailBooking, guest, pod)
       ]);
 
       results.forEach((result, index) => {
@@ -517,7 +528,7 @@ async function handleSuccessfulPayment(booking, payment, verifyResult) {
         } else if (result.value && !result.value.success) {
           console.error(`Failed to send ${types[index]} email (logic):`, result.value.message);
         } else {
-          console.log(`${types[index]} email sent for ${booking.bookingReference}`);
+          console.log(`${types[index]} email sent for ${emailBooking.bookingReference}`);
         }
       });
     } catch (err) {

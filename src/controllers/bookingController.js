@@ -592,12 +592,6 @@ async function createBooking(req, res, next) {
           (p) => p.extraId === ex.id,
         );
 
-        if (extraModel.requiresGuestDetails && !personalization?.text?.trim()) {
-          return res.status(400).json({
-            error: `Please provide arrangement details for ${extraModel.name}.`,
-          });
-        }
-
         if (extraModel.requiresDateSelection) {
           const dates = personalization?.dates;
           if (!Array.isArray(dates) || dates.length === 0) {

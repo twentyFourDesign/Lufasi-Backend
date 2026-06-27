@@ -23,6 +23,7 @@ db.BookingPayment = require("./bookingPayment")(sequelize, Sequelize);
 db.Payment = require("./payment")(sequelize, Sequelize);
 db.BookingLog = require("./bookingLog")(sequelize, Sequelize);
 db.Extra = require("./extra")(sequelize, Sequelize);
+db.ExtraBlockedDate = require("./extraBlockedDate")(sequelize, Sequelize);
 db.BookingExtra = require("./bookingExtra")(sequelize, Sequelize);
 db.MealPlan = require("./mealPlan")(sequelize, Sequelize);
 db.GuestDirectory = require("./guestDirectory")(sequelize, Sequelize);
@@ -63,6 +64,9 @@ db.BookingExtra.belongsTo(db.Booking, { foreignKey: "bookingId" });
 
 db.Extra.hasMany(db.BookingExtra, { foreignKey: "extraId" });
 db.BookingExtra.belongsTo(db.Extra, { foreignKey: "extraId" });
+
+db.Extra.hasMany(db.ExtraBlockedDate, { foreignKey: "extraId", as: "blockedDates" });
+db.ExtraBlockedDate.belongsTo(db.Extra, { foreignKey: "extraId" });
 
 db.Booking.hasMany(db.BookingLog, { foreignKey: "bookingId" });
 

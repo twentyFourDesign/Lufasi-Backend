@@ -73,6 +73,9 @@ function getWeekdayPeakInfoFromConfig() {
   };
 }
 
+/** Teens (13–18) pay 75% of the adult rate (25% discount). */
+const TEEN_RATE_MULTIPLIER = 0.75;
+
 function normalizeGuestCounts(guestCounts = {}) {
   return {
     adults: Number(guestCounts.adults) || 0,
@@ -81,6 +84,15 @@ function normalizeGuestCounts(guestCounts = {}) {
     children: Number(guestCounts.children) || 0,
     infants: Number(guestCounts.infants) || 0,
   };
+}
+
+function allocateAdultTeenSlots(guests, pods) {
+  const adultsInBase = Math.min(guests.adults, pods);
+  const slotsAfterAdults = pods - adultsInBase;
+  const teensInBase = Math.min(guests.teenagers, slotsAfterAdults);
+  const extraAdults = Math.max(0, guests.adults - adultsInBase);
+  const extraTeens = Math.max(0, guests.teenagers - teensInBase);
+  return { teensInBase, extraAdults, extraTeens };
 }
 
 /**
@@ -98,13 +110,18 @@ function calculateStayRoomSubtotal({
 }) {
   const pods = podsCount < 1 ? 1 : podsCount;
   const guests = normalizeGuestCounts(guestCounts);
-  const adultRateGuests =
-    guestCounts != null
-      ? guests.adults + guests.teenagers
-      : Math.max(1, Number(guestsCount) || 1);
   const toddlers = guestCounts != null ? guests.toddlers : 0;
   const children = guestCounts != null ? guests.children : 0;
-  const extraAdultGuests = Math.max(0, adultRateGuests - pods);
+  const legacyAdultGuests =
+    guestCounts == null ? Math.max(1, Number(guestsCount) || 1) : null;
+  const { teensInBase, extraAdults, extraTeens } =
+    guestCounts != null
+      ? allocateAdultTeenSlots(guests, pods)
+      : {
+          teensInBase: 0,
+          extraAdults: Math.max(0, legacyAdultGuests - pods),
+          extraTeens: 0,
+        };
 
   const nights = iterStayNights(checkIn, checkOut);
   if (!nights.length) {
@@ -120,6 +137,7 @@ function calculateStayRoomSubtotal({
   let subtotal = 0;
   let baseForStay = 0;
   let extraForStay = 0;
+  let teenForStay = 0;
   let toddlerForStay = 0;
   let childForStay = 0;
   let peakNights = 0;
@@ -137,14 +155,20 @@ function calculateStayRoomSubtotal({
     const multiplier = 1 + seasonalPct / 100;
 
     const nightBase = pods * basePerPod * multiplier;
-    const nightExtra = extraAdultGuests * extraGuestFee * multiplier;
+    const nightExtraAdult = extraAdults * extraGuestFee * multiplier;
+    const nightExtraTeen = extraTeens * extraGuestFee * TEEN_RATE_MULTIPLIER * multiplier;
+    const nightTeenBaseDiscount =
+      teensInBase * basePerPod * (1 - TEEN_RATE_MULTIPLIER) * multiplier;
     const nightToddler = toddlers * basePerPod * 0.75 * multiplier;
     const nightChild = children * basePerPod * 0.5 * multiplier;
-    const nightTotal = nightBase + nightExtra + nightToddler + nightChild;
+    const nightTeenNet = nightExtraTeen - nightTeenBaseDiscount;
+    const nightTotal =
+      nightBase + nightExtraAdult + nightTeenNet + nightToddler + nightChild;
 
     subtotal += nightTotal;
     baseForStay += nightBase;
-    extraForStay += nightExtra;
+    extraForStay += nightExtraAdult;
+    teenForStay += nightTeenNet;
     toddlerForStay += nightToddler;
     childForStay += nightChild;
     if (isPeak) peakNights += 1;
@@ -158,7 +182,8 @@ function calculateStayRoomSubtotal({
       seasonalPercent: seasonalPct,
       multiplier,
       nightBase,
-      nightExtra,
+      nightExtraAdult,
+      nightTeenNet,
       nightToddler,
       nightChild,
       nightTotal,
@@ -169,6 +194,7 @@ function calculateStayRoomSubtotal({
     subtotal,
     baseForStay,
     extraForStay,
+    teenForStay,
     toddlerForStay,
     childForStay,
     nights: nights.length,

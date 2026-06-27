@@ -6,6 +6,10 @@ const { uploaders } = require("../services/uploadService");
 
 router.get("/", extraController.listExtras);
 router.get("/by-category", extraController.getExtrasByCategory);
+router.get("/blocked-dates", extraController.listPublicBlockedDates);
+router.get("/blocked-dates/manage", adminAuth, extraController.listManagedBlockedDates);
+router.post("/blocked-dates", adminAuth, extraController.addBlockedDate);
+router.delete("/blocked-dates/:id", adminAuth, extraController.removeBlockedDate);
 router.post("/", adminAuth, extraController.createExtra);
 router.put(
   "/category/:category/meta",

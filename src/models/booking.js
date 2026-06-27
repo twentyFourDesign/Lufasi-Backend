@@ -137,6 +137,11 @@ module.exports = (sequelize) => {
         allowNull: true,
         field: "welcome_note",
       },
+      extraPersonalizations: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        field: "extra_personalizations",
+      },
       expiresAt: { type: DataTypes.DATE, allowNull: true },
       bookingSource: {
         type: DataTypes.STRING(50),

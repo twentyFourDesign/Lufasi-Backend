@@ -13,6 +13,9 @@ async function createExtra(req, res, next) {
       isActive,
       categoryTitle,
       categorySubtitle,
+      requiresGuestDetails,
+      detailsPrompt,
+      requiresDateSelection,
     } = req.body;
     const extra = await db.Extra.create({
       id: uuidv4(),
@@ -23,6 +26,9 @@ async function createExtra(req, res, next) {
       imageUrl,
       categoryTitle: categoryTitle || null,
       categorySubtitle: categorySubtitle || null,
+      requiresGuestDetails: !!requiresGuestDetails,
+      detailsPrompt: detailsPrompt || null,
+      requiresDateSelection: !!requiresDateSelection,
       isActive: isActive !== undefined ? isActive : true,
     });
     res.json({ extra });
@@ -82,6 +88,9 @@ async function getExtrasByCategory(req, res, next) {
         price: parseFloat(extra.price),
         imageUrl: extra.imageUrl,
         category: extra.category,
+        requiresGuestDetails: !!extra.requiresGuestDetails,
+        detailsPrompt: extra.detailsPrompt || null,
+        requiresDateSelection: !!extra.requiresDateSelection,
       });
 
       return acc;
@@ -289,6 +298,127 @@ async function updateCategoryMeta(req, res, next) {
   }
 }
 
+async function listPublicBlockedDates(req, res, next) {
+  try {
+    const rows = await db.ExtraBlockedDate.findAll({
+      order: [["date", "ASC"]],
+      attributes: ["id", "extraId", "category", "date", "reason"],
+    });
+    res.json({
+      blockedDates: rows.map((r) => ({
+        id: r.id,
+        extraId: r.extraId,
+        category: r.category,
+        date: String(r.date).slice(0, 10),
+        reason: r.reason || null,
+      })),
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function listManagedBlockedDates(req, res, next) {
+  try {
+    const { extraId, category } = req.query;
+    const where = {};
+    if (extraId) where.extraId = extraId;
+    if (category) where.category = category;
+    if (!extraId && !category) {
+      return res.status(400).json({ error: "Provide extraId or category query parameter." });
+    }
+
+    const rows = await db.ExtraBlockedDate.findAll({
+      where,
+      order: [["date", "ASC"]],
+    });
+    res.json({
+      blockedDates: rows.map((r) => ({
+        id: r.id,
+        extraId: r.extraId,
+        category: r.category,
+        date: String(r.date).slice(0, 10),
+        reason: r.reason || null,
+      })),
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function addBlockedDate(req, res, next) {
+  try {
+    const { extraId, category, date, reason, endDate } = req.body || {};
+    if (!date) {
+      return res.status(400).json({ error: "date is required." });
+    }
+    if (!extraId && !category) {
+      return res.status(400).json({ error: "Provide extraId or category." });
+    }
+    if (extraId && category) {
+      return res.status(400).json({ error: "Provide only extraId or category, not both." });
+    }
+
+    if (extraId) {
+      const extra = await db.Extra.findByPk(extraId);
+      if (!extra) return res.status(404).json({ error: "Extra not found." });
+    }
+
+    const datesToAdd = [];
+    const start = new Date(date);
+    const end = endDate ? new Date(endDate) : start;
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) {
+      return res.status(400).json({ error: "Invalid date or date range." });
+    }
+
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      datesToAdd.push(d.toISOString().slice(0, 10));
+    }
+
+    const created = [];
+    for (const dateStr of datesToAdd) {
+      const [row] = await db.ExtraBlockedDate.findOrCreate({
+        where: extraId ? { extraId, date: dateStr } : { category, date: dateStr },
+        defaults: {
+          id: uuidv4(),
+          extraId: extraId || null,
+          category: category || null,
+          date: dateStr,
+          reason: reason?.trim() || null,
+        },
+      });
+      if (reason?.trim() && row.reason !== reason.trim()) {
+        row.reason = reason.trim();
+        await row.save();
+      }
+      created.push(row);
+    }
+
+    res.json({
+      blockedDates: created.map((r) => ({
+        id: r.id,
+        extraId: r.extraId,
+        category: r.category,
+        date: String(r.date).slice(0, 10),
+        reason: r.reason || null,
+      })),
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function removeBlockedDate(req, res, next) {
+  try {
+    const row = await db.ExtraBlockedDate.findByPk(req.params.id);
+    if (!row) return res.status(404).json({ error: "Blocked date not found." });
+    await row.destroy();
+    res.json({ message: "Blocked date removed." });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   createExtra,
   listExtras,
@@ -299,5 +429,9 @@ module.exports = {
   updateCategoryImage,
   clearCategoryImage,
   updateCategoryMeta,
+  listPublicBlockedDates,
+  listManagedBlockedDates,
+  addBlockedDate,
+  removeBlockedDate,
 };
 

@@ -15,6 +15,7 @@ const {
   getMaxPopUpBeds,
 } = require("../utils/familyRules");
 const { hasCapacityForStay } = require("../services/inventoryService");
+const { validateBlockedExtraDates } = require("../utils/extraBlockedDates");
 const { withAdvisoryLock, INVENTORY_LOCK_KEY } = require("../utils/advisoryLock");
 const { triggerAriPushForStay } = require("../services/channexAriService");
 const { getActiveCalendarRows } = require("../utils/inventoryHolds");
@@ -78,12 +79,12 @@ async function calculateBaseAndExtraForStay({
     })),
   });
 
-  const adultRateGuests = normalizedGuests.adults + normalizedGuests.teenagers;
-  const extraGuests = Math.max(0, adultRateGuests - pods);
+  const extraGuests = Math.max(0, normalizedGuests.adults - pods);
 
   return {
     baseForStay: stayPricing.baseForStay,
     extraForStay: stayPricing.extraForStay,
+    teenForStay: stayPricing.teenForStay || 0,
     toddlerForStay: stayPricing.toddlerForStay || 0,
     childForStay: stayPricing.childForStay || 0,
     extraGuests,
@@ -199,6 +200,7 @@ async function createBooking(req, res, next) {
       podCount,
       domeDetails = [],
       welcomeNote = null,
+      extraPersonalizations = null,
     } = payload;
     const bookingData = {
       podId: podId,
@@ -230,6 +232,7 @@ async function createBooking(req, res, next) {
       podCount: Number(podCount) || 1,
       domeDetails,
       welcomeNote,
+      extraPersonalizations,
     };
 
     // Basic validations
@@ -415,6 +418,7 @@ async function createBooking(req, res, next) {
     const {
       baseForStay,
       extraForStay,
+      teenForStay,
       toddlerForStay,
       childForStay,
       extraGuests,
@@ -428,7 +432,8 @@ async function createBooking(req, res, next) {
         checkOut: bookingData.checkOut,
       });
 
-    let calculatedTotal = baseForStay + extraForStay + toddlerForStay + childForStay;
+    let calculatedTotal =
+      baseForStay + extraForStay + teenForStay + toddlerForStay + childForStay;
 
     let twelveGuestDiscountApplied = false;
     let twelveGuestDiscountAmount = 0;
@@ -506,15 +511,25 @@ async function createBooking(req, res, next) {
       podCount: podsRequested,
       basePodsCost: baseForStay,
       extra_guest_charges:
-        extraGuests > 0 || toddlerForStay > 0 || childForStay > 0
+        extraGuests > 0 || teenForStay !== 0 || toddlerForStay > 0 || childForStay > 0
           ? [
             ...(extraGuests > 0
               ? [
                   {
                     guests: extraGuests,
-                    label: "Additional adult-rate guests",
+                    label: "Additional adults",
                     unitPrice: Number(pricingConfig.extraGuestFee),
                     total: extraForStay,
+                  },
+                ]
+              : []),
+            ...(guestCounts.teenagers > 0
+              ? [
+                  {
+                    guests: guestCounts.teenagers,
+                    label: "Teens (13-18)",
+                    rate: "25% off adult rate",
+                    total: teenForStay,
                   },
                 ]
               : []),
@@ -566,6 +581,61 @@ async function createBooking(req, res, next) {
         percentageAdjustment: peakRateInfo.percentageAdjustment,
       } : null
     };
+
+    // Validate personalization details for extras that require them
+    if (bookingData.extras?.length) {
+      for (const ex of bookingData.extras) {
+        const extraModel = await db.Extra.findByPk(ex.id);
+        if (!extraModel) continue;
+
+        const personalization = (bookingData.extraPersonalizations || []).find(
+          (p) => p.extraId === ex.id,
+        );
+
+        if (extraModel.requiresGuestDetails && !personalization?.text?.trim()) {
+          return res.status(400).json({
+            error: `Please provide arrangement details for ${extraModel.name}.`,
+          });
+        }
+
+        if (extraModel.requiresDateSelection) {
+          const dates = personalization?.dates;
+          if (!Array.isArray(dates) || dates.length === 0) {
+            return res.status(400).json({
+              error: `Please select at least one date for ${extraModel.name}.`,
+            });
+          }
+        }
+      }
+
+      const blockedDateError = await validateBlockedExtraDates({
+        extras: bookingData.extras,
+        extraPersonalizations: bookingData.extraPersonalizations,
+      });
+      if (blockedDateError) {
+        return res.status(400).json({ error: blockedDateError });
+      }
+    }
+
+    if (Array.isArray(bookingData.extraPersonalizations)) {
+      const selectedIds = new Set((bookingData.extras || []).map((e) => e.id));
+      const cleaned = bookingData.extraPersonalizations
+        .filter((p) => {
+          if (!selectedIds.has(p.extraId)) return false;
+          const hasText = String(p.text || "").trim();
+          const hasDates = Array.isArray(p.dates) && p.dates.length > 0;
+          return hasText || hasDates;
+        })
+        .map((p) => ({
+          extraId: p.extraId,
+          extraName: p.extraName || "",
+          text: String(p.text || "").trim(),
+          dates: Array.isArray(p.dates) ? p.dates : [],
+        }));
+      bookingData.extraPersonalizations = cleaned.length ? cleaned : null;
+    } else {
+      bookingData.extraPersonalizations = null;
+    }
 
     // Create or find guest directory
     let guestDir = await db.GuestDirectory.findOne({
@@ -652,7 +722,7 @@ async function createBooking(req, res, next) {
       guestsCount: totalGuests,
       podsCount: podsRequested,
       priceSnapshotBase: baseForStay,
-      priceSnapshotExtra: extraForStay + toddlerForStay + childForStay,
+      priceSnapshotExtra: extraForStay + teenForStay + toddlerForStay + childForStay,
       identificationImageUrl,
       calculatedTotal,
       configBasePricePerPod: Number(pricingConfig.basePricePerPod),
@@ -670,6 +740,7 @@ async function createBooking(req, res, next) {
       peakRateName: peakRateInfo ? peakRateInfo.name : null,
       domeDetails: bookingData.domeDetails,
       welcomeNote: bookingData.welcomeNote,
+      extraPersonalizations: bookingData.extraPersonalizations,
       expiresAt: expiresAt,
       discountId: appliedDiscountId,
       voucherId: appliedVoucherId,
@@ -1052,6 +1123,7 @@ async function findBooking(req, res, next) {
 
       // Additional properties
       welcomeNote: booking.welcomeNote,
+      extraPersonalizations: booking.extraPersonalizations,
       createdAt: booking.createdAt,
       updatedAt: booking.updatedAt,
     };

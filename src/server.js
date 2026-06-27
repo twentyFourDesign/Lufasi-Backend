@@ -8,6 +8,8 @@ const {
 } = require("./utils/ensureExtrasCategoryColumns");
 const { ensureWeekdayPeakColumns } = require("./utils/ensureWeekdayPeakColumns");
 const { ensureWeekdayPriceColumns } = require("./utils/ensureWeekdayPriceColumns");
+const { ensurePersonalizationColumns } = require("./utils/ensurePersonalizationColumns");
+const { ensureExtraBlockedDatesTable } = require("./utils/ensureExtraBlockedDatesTable");
 const { ensureChannexTables } = require("./utils/ensureChannexTables");
 const { startScheduler } = require("./jobs/scheduler");
 
@@ -24,6 +26,8 @@ async function init() {
       await ensureExtrasCategoryColumns(db.sequelize);
       await ensureWeekdayPeakColumns(db.sequelize);
       await ensureWeekdayPriceColumns(db.sequelize);
+      await ensurePersonalizationColumns(db.sequelize);
+      await ensureExtraBlockedDatesTable(db.sequelize);
       await ensureChannexTables(db.sequelize);
     } catch (schemaErr) {
       console.error(

@@ -118,6 +118,48 @@ function getBookingMealPlanLabel(booking) {
   return booking?.boardType === "halfBoard" ? "Half Board" : "Full Board";
 }
 
+function formatExtraPersonalizationsHtml(booking) {
+  const items = booking?.extraPersonalizations;
+  if (!Array.isArray(items) || items.length === 0) return "";
+
+  const blocks = items
+    .map((item) => {
+      const dates =
+        item.dates?.length > 0
+          ? `<p style="margin: 4px 0 0; color: #666; font-size: 12px;">Dates: ${item.dates.join(", ")}</p>`
+          : "";
+      return `<div style="margin-bottom: 12px;">
+        <p style="margin: 0; color: #1565c0; font-size: 13px; font-weight: 600;">${item.extraName || "Extra"}</p>
+        <p style="margin: 4px 0 0; color: #333; font-size: 13px; font-style: italic;">"${item.text || ""}"</p>
+        ${dates}
+      </div>`;
+    })
+    .join("");
+
+  return `<tr>
+    <td style="padding: 10px 40px;">
+      <h3 style="margin: 0 0 12px 0; color: #1565c0; font-size: 16px; border-bottom: 2px solid #e3f2fd; padding-bottom: 10px;">Extra Arrangement Details</h3>
+      ${blocks}
+    </td>
+  </tr>`;
+}
+
+function formatWelcomeNoteHtml(booking) {
+  const note = booking?.welcomeNote;
+  if (!note?.text) return "";
+  const dates =
+    note.dates?.length > 0
+      ? `<p style="margin: 4px 0 0; color: #666; font-size: 12px;">Dates: ${note.dates.join(", ")}</p>`
+      : "";
+  return `<tr>
+    <td style="padding: 10px 40px;">
+      <h3 style="margin: 0 0 12px 0; color: #1565c0; font-size: 16px; border-bottom: 2px solid #e3f2fd; padding-bottom: 10px;">Welcome Note</h3>
+      <p style="margin: 0; color: #333; font-size: 14px; font-style: italic;">"${note.text}"</p>
+      ${dates}
+    </td>
+  </tr>`;
+}
+
 function getBookingTotalVisitors(booking) {
   const { adults, children, toddlers, infants } = getBookingGuestCounts(booking);
   const total = adults + children + toddlers + infants;
@@ -814,6 +856,9 @@ class EmailService {
               </table>
             </td>
           </tr>
+
+          ${formatWelcomeNoteHtml(booking)}
+          ${formatExtraPersonalizationsHtml(booking)}
 
           <!-- Payment Information -->
           <tr>

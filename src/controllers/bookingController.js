@@ -538,7 +538,7 @@ async function createBooking(req, res, next) {
                   {
                     guests: guestCounts.toddlers,
                     label: "Toddlers (1-3)",
-                    rate: "75% of base pod rate",
+                    rate: "75% off adult rate",
                     total: toddlerForStay,
                   },
                 ]
@@ -548,7 +548,7 @@ async function createBooking(req, res, next) {
                   {
                     guests: guestCounts.children,
                     label: "Children (4-12)",
-                    rate: "50% of base pod rate",
+                    rate: "50% off adult rate",
                     total: childForStay,
                   },
                 ]

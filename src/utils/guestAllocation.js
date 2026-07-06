@@ -1,0 +1,136 @@
+const { normalizeFamilyGuests } = require("./familyRules");
+const { allocateGuestsToPods } = require("./podGuestPricing");
+
+const GUEST_TYPE_ORDER = ["adult", "teen", "child", "toddler", "infant"];
+
+function guestPoolFromCounts(guests = {}) {
+  const g = normalizeFamilyGuests(guests);
+  return {
+    adult: g.adults,
+    teen: g.teenagers,
+    child: g.children,
+    toddler: g.toddlers,
+    infant: g.infants,
+  };
+}
+
+function countTypesInPod(podGuests = []) {
+  const counts = { adult: 0, teen: 0, child: 0, toddler: 0, infant: 0 };
+  for (const type of podGuests) {
+    if (counts[type] != null) counts[type] += 1;
+  }
+  return counts;
+}
+
+function countTypesAcrossPods(podAllocation = []) {
+  const totals = { adult: 0, teen: 0, child: 0, toddler: 0, infant: 0 };
+  for (const pod of podAllocation) {
+    const podCounts = countTypesInPod(pod);
+    for (const key of GUEST_TYPE_ORDER) {
+      totals[key] += podCounts[key];
+    }
+  }
+  return totals;
+}
+
+function isOneAdultTwoChildrenOnePod(guests, podCount) {
+  const g = normalizeFamilyGuests(guests);
+  return (
+    podCount === 1 &&
+    g.adults === 1 &&
+    g.teenagers === 0 &&
+    g.children === 2 &&
+    g.toddlers === 0
+  );
+}
+
+function canAddGuestToPod(podGuests, type, guests, podCount, podIndex) {
+  if (!GUEST_TYPE_ORDER.includes(type)) return false;
+  const billable = podGuests.filter((g) => g !== "infant").length;
+  const allowTriple =
+    isOneAdultTwoChildrenOnePod(guests, podCount) && podIndex === 0;
+  const maxBillable = allowTriple ? 3 : 2;
+
+  if (type === "infant") {
+    return podGuests.filter((g) => g === "infant").length < 1;
+  }
+  return billable < maxBillable;
+}
+
+function podAllocationFromDomeDetails(domeDetails) {
+  if (!Array.isArray(domeDetails) || domeDetails.length === 0) return null;
+  const allocation = domeDetails.map((d) =>
+    Array.isArray(d.guestTypes) ? [...d.guestTypes] : [],
+  );
+  if (!allocation.some((pod) => pod.length > 0)) return null;
+  return allocation;
+}
+
+function validatePodAllocation(podAllocation, guests, podCount) {
+  const errors = [];
+  const g = normalizeFamilyGuests(guests);
+  const expected = guestPoolFromCounts(g);
+  const assigned = countTypesAcrossPods(podAllocation);
+
+  for (const key of GUEST_TYPE_ORDER) {
+    if (assigned[key] !== expected[key]) {
+      errors.push(
+        `Assign all ${key} guests (${expected[key]} needed, ${assigned[key]} placed).`,
+      );
+    }
+  }
+
+  const pods = Number(podCount) || 1;
+  for (let i = 0; i < podAllocation.length; i++) {
+    const pod = podAllocation[i] || [];
+    const billable = pod.filter((t) => t !== "infant").length;
+    const allowTriple = isOneAdultTwoChildrenOnePod(g, pods) && i === 0;
+    const maxBillable = allowTriple ? 3 : 2;
+    if (billable > maxBillable) {
+      errors.push(`Dome ${i + 1} has too many guests.`);
+    }
+    if (pod.filter((t) => t === "infant").length > 1) {
+      errors.push(`Dome ${i + 1} can only have one infant.`);
+    }
+  }
+
+  if (g.infants + g.toddlers + g.children > 0 && g.adults < 1) {
+    errors.push(
+      "An adult must be in the booking when traveling with children.",
+    );
+  }
+
+  return { valid: errors.length === 0, errors };
+}
+
+function resolvePodAllocation({ domeDetails, guestCounts, podsCount }) {
+  const fromDomes = podAllocationFromDomeDetails(domeDetails);
+  if (fromDomes) {
+    const validation = validatePodAllocation(
+      fromDomes,
+      guestCounts,
+      podsCount,
+    );
+    if (!validation.valid) {
+      return { allocation: null, error: validation.errors[0] };
+    }
+    return { allocation: fromDomes, error: null };
+  }
+
+  const g = normalizeFamilyGuests(guestCounts);
+  return {
+    allocation: allocateGuestsToPods(g, podsCount),
+    error: null,
+  };
+}
+
+module.exports = {
+  GUEST_TYPE_ORDER,
+  guestPoolFromCounts,
+  countTypesInPod,
+  countTypesAcrossPods,
+  canAddGuestToPod,
+  podAllocationFromDomeDetails,
+  validatePodAllocation,
+  resolvePodAllocation,
+};

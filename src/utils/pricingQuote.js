@@ -60,12 +60,14 @@ function buildPricingQuote({
   normalizedExtras = [],
   applyTwelveGuestDiscount = true,
   includeNightBreakdown = true,
+  podAllocation: podAllocationOverride = null,
 }) {
   const stayPricing = calculateStayRoomSubtotal({
     checkIn: checkInDate,
     checkOut: checkOutDate,
     podsCount: podCount,
     guestCounts,
+    podAllocation: podAllocationOverride,
     pricingConfig,
     seasonalRates,
   });
@@ -111,6 +113,12 @@ function buildPricingQuote({
     },
     ratePolicy: {
       adultReferenceRate: "extraGuestFee (additional adult guest rate per night)",
+      perDomeRules: [
+        "Each occupied dome: 1st guest pays base (adult rate); 2nd+ guest pays extraGuestFee × age multiplier.",
+        "Teen alone in a dome: pays full adult base only (no teen discount).",
+        "Dome without an adult: 1st guest still pays adult base; 2nd guest pays discounted rate.",
+        "Guest-to-dome assignment uses guest choices when provided; otherwise inferred automatically.",
+      ],
       teen: {
         ageBand: "13–18",
         discount: "25% off adult guest rate",
@@ -165,6 +173,7 @@ function buildPricingQuote({
       ...(includeNightBreakdown && stayPricing.nightBreakdown
         ? { nightBreakdown: stayPricing.nightBreakdown }
         : {}),
+      podAllocation: stayPricing.podAllocation || [],
     },
     extras: {
       items: normalizedExtras,

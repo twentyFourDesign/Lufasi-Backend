@@ -1,3 +1,4 @@
+const { resolvePodAllocation } = require("../utils/guestAllocation");
 const { normalizeFamilyGuests } = require("../utils/familyRules");
 const {
   mergePricingConfig,
@@ -24,6 +25,8 @@ async function quotePricing(req, res, next) {
       rooms,
       pods,
       guests = {},
+      podAllocation: podAllocationBody,
+      domeDetails = [],
       extras = [],
       pricingConfig: pricingConfigOverride,
       seasonalRates: seasonalRatesOverride,
@@ -72,6 +75,20 @@ async function quotePricing(req, res, next) {
 
     const normalizedExtras = normalizeExtras(extras);
 
+    let podAllocationOverride = Array.isArray(podAllocationBody)
+      ? podAllocationBody
+      : null;
+    if (!podAllocationOverride && Array.isArray(domeDetails) && domeDetails.length) {
+      const resolved = resolvePodAllocation({
+        domeDetails,
+        guestCounts,
+        podsCount: podCount,
+      });
+      if (!resolved.error) {
+        podAllocationOverride = resolved.allocation;
+      }
+    }
+
     const quote = buildPricingQuote({
       checkInDate,
       checkOutDate,
@@ -82,6 +99,7 @@ async function quotePricing(req, res, next) {
       normalizedExtras,
       applyTwelveGuestDiscount,
       includeNightBreakdown,
+      podAllocation: podAllocationOverride,
     });
 
     res.json({

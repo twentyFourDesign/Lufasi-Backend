@@ -6,6 +6,7 @@ const emailService = require("../services/emailService");
 const uploadService = require("../services/uploadService");
 const { getActivePeakRateForDates } = require("./configController");
 const { calculateStayRoomSubtotal } = require("../utils/weekdayPeakPricing");
+const { resolvePodAllocation } = require("../utils/guestAllocation");
 const {
   normalizeFamilyGuests,
   hasUnder13Guests,
@@ -59,17 +60,32 @@ async function calculateBaseAndExtraForStay({
   config,
   checkIn,
   checkOut,
+  domeDetails = [],
 }) {
   const pods = podsCount < 1 ? 1 : podsCount;
   const normalizedGuests = normalizeFamilyGuests(guestCounts);
 
   const seasonalRates = await db.PeakRate.findAll({ where: { isActive: true } });
 
+  const { allocation: podAllocation, error: allocationError } =
+    resolvePodAllocation({
+      domeDetails,
+      guestCounts: normalizedGuests,
+      podsCount: pods,
+    });
+
+  if (allocationError) {
+    const err = new Error(allocationError);
+    err.statusCode = 400;
+    throw err;
+  }
+
   const stayPricing = calculateStayRoomSubtotal({
     checkIn,
     checkOut,
     podsCount: pods,
     guestCounts: normalizedGuests,
+    podAllocation,
     pricingConfig: config,
     seasonalRates: seasonalRates.map((r) => ({
       startDate: r.startDate,
@@ -311,6 +327,18 @@ async function createBooking(req, res, next) {
       });
     }
 
+    const domeDetailsPayload = Array.isArray(bookingData.domeDetails)
+      ? bookingData.domeDetails
+      : [];
+    const { error: allocationError } = resolvePodAllocation({
+        domeDetails: domeDetailsPayload,
+        guestCounts,
+        podsCount: podsRequested,
+      });
+    if (allocationError) {
+      return res.status(400).json({ error: allocationError });
+    }
+
     const requestedPopUpBeds = Math.max(
       0,
       Math.floor(Number(bookingData.popUpBeds) || 0),
@@ -430,6 +458,7 @@ async function createBooking(req, res, next) {
         config: pricingConfig,
         checkIn: bookingData.checkIn,
         checkOut: bookingData.checkOut,
+        domeDetails: domeDetailsPayload,
       });
 
     let calculatedTotal =

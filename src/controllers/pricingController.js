@@ -1,5 +1,5 @@
 const { resolvePodAllocation } = require("../utils/guestAllocation");
-const { normalizeFamilyGuests } = require("../utils/familyRules");
+const { normalizeFamilyGuests, isAllowedGuestCombination } = require("../utils/familyRules");
 const {
   mergePricingConfig,
   normalizeExtras,
@@ -48,8 +48,10 @@ async function quotePricing(req, res, next) {
     }
 
     const guestCounts = normalizeFamilyGuests(guests);
-    if (guestCounts.adults < 1) {
-      return res.status(400).json({ error: "At least one adult is required." });
+    if (!isAllowedGuestCombination(guestCounts)) {
+      return res.status(400).json({
+        error: "This guest combination is not available for booking.",
+      });
     }
 
     const hasConfigOverride =

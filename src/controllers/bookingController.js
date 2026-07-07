@@ -13,6 +13,7 @@ const {
   getBillableGuestCount,
   getDisplayGuestCount,
   isFamilyCompositionAllowed,
+  isAllowedGuestCombination,
   getMaxPopUpBeds,
 } = require("../utils/familyRules");
 const { hasCapacityForStay } = require("../services/inventoryService");
@@ -320,10 +321,16 @@ async function createBooking(req, res, next) {
       });
     }
 
+    if (!isAllowedGuestCombination(guestCounts)) {
+      return res.status(400).json({
+        error: "This guest combination is not available for booking.",
+      });
+    }
+
     if (!isFamilyCompositionAllowed(guestCounts, podsRequested)) {
       return res.status(400).json({
         error:
-          "Guest mix does not match the family occupancy rules for the selected number of domes.",
+          "This guest combination cannot be accommodated in the selected number of domes.",
       });
     }
 
@@ -556,7 +563,7 @@ async function createBooking(req, res, next) {
               ? [
                   {
                     guests: guestCounts.teenagers,
-                    label: "Teens (13-18)",
+                    label: "Teens (13-17)",
                     rate: "25% off adult rate",
                     total: teenForStay,
                   },

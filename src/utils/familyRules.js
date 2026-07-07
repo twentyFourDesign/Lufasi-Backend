@@ -1,3 +1,5 @@
+const { isAllowedGuestCombination } = require("./allowedGuestCombinations");
+
 function normalizeFamilyGuests(guests = {}) {
   return {
     adults: Number(guests.adults) || 0,
@@ -28,8 +30,6 @@ function isFamilyCompositionAllowed(guests = {}, podCount = 1) {
   const pods = Number(podCount) || 1;
   const billable = getBillableGuestCount(guests);
   const childLikeGuests = g.toddlers + g.children;
-  const needsAdultSupervisor =
-    g.infants + g.toddlers + g.children > 0;
   const oneAdultTwoChildrenOnePod =
     pods === 1 &&
     g.adults === 1 &&
@@ -37,18 +37,13 @@ function isFamilyCompositionAllowed(guests = {}, podCount = 1) {
     g.children === 2 &&
     g.toddlers === 0;
 
+  if (!isAllowedGuestCombination(g)) return false;
   if (pods < 1 || pods > 6) return false;
-  // At least one adult or teen must be in the booking.
   if (g.adults + g.teenagers < 1) return false;
-  // Infants/toddlers/children require an adult somewhere in the booking.
-  if (needsAdultSupervisor && g.adults < 1) return false;
   if (billable > pods * 2 && !oneAdultTwoChildrenOnePod) return false;
   if (billable < pods) return false;
   if (g.infants > pods) return false;
 
-  if (g.adults + g.teenagers >= 2 && g.children >= 2 && pods < 2) {
-    return false;
-  }
   if (oneAdultTwoChildrenOnePod) {
     return g.infants <= 1;
   }
@@ -57,6 +52,7 @@ function isFamilyCompositionAllowed(guests = {}, podCount = 1) {
 }
 
 function findMinValidPodCount(guests = {}) {
+  if (!isAllowedGuestCombination(normalizeFamilyGuests(guests))) return null;
   for (let p = 1; p <= 6; p += 1) {
     if (isFamilyCompositionAllowed(guests, p)) return p;
   }
@@ -74,6 +70,7 @@ module.exports = {
   hasUnder13Guests,
   getBillableGuestCount,
   getDisplayGuestCount,
+  isAllowedGuestCombination,
   isFamilyCompositionAllowed,
   findMinValidPodCount,
   getMaxPopUpBeds,

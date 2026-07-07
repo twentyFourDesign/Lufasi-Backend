@@ -94,10 +94,12 @@ function validatePodAllocation(podAllocation, guests, podCount) {
     }
   }
 
-  if (g.infants + g.toddlers + g.children > 0 && g.adults < 1) {
-    errors.push(
-      "An adult must be in the booking when traveling with children.",
-    );
+  if (
+    g.infants + g.toddlers + g.children > 0 &&
+    g.adults < 1 &&
+    g.teenagers < 1
+  ) {
+    errors.push("At least one adult or teen must be in the booking.");
   }
 
   return { valid: errors.length === 0, errors };

@@ -120,7 +120,7 @@ function buildPricingQuote({
         "Guest-to-dome assignment uses guest choices when provided; otherwise inferred automatically.",
       ],
       teen: {
-        ageBand: "13–18",
+        ageBand: "13–17",
         discount: "25% off adult guest rate",
         payMultiplier: TEEN_RATE_MULTIPLIER,
       },

@@ -38,8 +38,9 @@ function isOneAdultTwoChildrenOnePod(guests, podCount) {
 }
 
 /**
- * Distribute guests across domes (max 2 billable + infants per dome).
- * Exception: 1 adult + 2 children may share a single dome (3 billable).
+ * Distribute guests across domes.
+ * Per dome: up to 2 adults/teens + 1 child/toddler + 1 infant.
+ * Exception: 1 adult + 2 children may share a single dome.
  * @returns {string[][]} pods[p] = guest type tokens
  */
 function allocateGuestsToPods(guests, podCount) {
@@ -53,16 +54,30 @@ function allocateGuestsToPods(guests, podCount) {
 
   const pushToPod = (p, type) => {
     if (p < 0 || p >= podCount) return false;
-    const billable = pods[p].filter((g) => g !== "infant").length;
-    const maxBillable = allowTripleOccupancy && p === 0 ? 3 : 2;
+    const allowTriple = allowTripleOccupancy && p === 0;
+    const primary = pods[p].filter((g) => g === "adult" || g === "teen").length;
+    const childLike = pods[p].filter(
+      (g) => g === "child" || g === "toddler",
+    ).length;
+    const infants = pods[p].filter((g) => g === "infant").length;
+
     if (type === "infant") {
-      if (pods[p].filter((g) => g === "infant").length >= 1) return false;
+      if (infants >= 1) return false;
       pods[p].push("infant");
       return true;
     }
-    if (billable >= maxBillable) return false;
-    pods[p].push(type);
-    return true;
+    if (type === "adult" || type === "teen") {
+      if (primary >= 2) return false;
+      pods[p].push(type);
+      return true;
+    }
+    if (type === "child" || type === "toddler") {
+      const maxChildLike = allowTriple ? 2 : 1;
+      if (childLike >= maxChildLike) return false;
+      pods[p].push(type);
+      return true;
+    }
+    return false;
   };
 
   // Adults spread one per dome first.

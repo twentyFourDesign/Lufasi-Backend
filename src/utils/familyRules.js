@@ -1,12 +1,12 @@
 /**
- * Pod occupancy rules (not an exclusive guest-mix whitelist).
+ * Original family / dome occupancy rules:
  *
- * - At least one adult or teen
- * - Max 2 billable guests per dome (adults, teens, children, toddlers)
- * - Exception: 1 adult + 2 children may share a single dome
- * - Max 1 infant per dome (infants are not billable)
- * - Max 1 child/toddler per dome (except the 1A+2C triple case)
- * - Billable guests must be >= dome count (no empty billable domes)
+ * Per dome maximum:
+ * - 2 adults/teens (primary guests)
+ * - + 1 child (4–12) or toddler (1–3) sharing / optional pop-up bed
+ * - + 1 infant (0–1, free)
+ *
+ * Exception: 1 adult + 2 children may share a single dome.
  */
 
 function normalizeFamilyGuests(guests = {}) {
@@ -29,6 +29,11 @@ function getBillableGuestCount(guests = {}) {
   return g.adults + g.teenagers + g.toddlers + g.children;
 }
 
+function getPrimaryGuestCount(guests = {}) {
+  const g = normalizeFamilyGuests(guests);
+  return g.adults + g.teenagers;
+}
+
 function getDisplayGuestCount(guests = {}) {
   const g = normalizeFamilyGuests(guests);
   return g.adults + g.teenagers + g.toddlers + g.children + g.infants;
@@ -47,20 +52,20 @@ function isOneAdultTwoChildrenOnePod(g, pods) {
 function isFamilyCompositionAllowed(guests = {}, podCount = 1) {
   const g = normalizeFamilyGuests(guests);
   const pods = Number(podCount) || 1;
-  const billable = getBillableGuestCount(guests);
+  const primary = getPrimaryGuestCount(g);
   const childLikeGuests = g.toddlers + g.children;
   const triple = isOneAdultTwoChildrenOnePod(g, pods);
 
   if (pods < 1 || pods > 6) return false;
-  if (g.adults + g.teenagers < 1) return false;
+  if (primary < 1) return false;
+  if (primary < pods) return false;
+  if (primary > pods * 2) return false;
   if (g.infants > pods) return false;
-  if (billable < pods) return false;
 
   if (triple) {
     return g.infants <= 1;
   }
 
-  if (billable > pods * 2) return false;
   if (childLikeGuests > pods) return false;
 
   return true;
@@ -82,7 +87,6 @@ function findMaxValidPodCount(guests = {}, availablePods = 6) {
   return best;
 }
 
-/** Occupancy fit check — not a fixed whitelist of mixes. */
 function isAllowedGuestCombination(guests = {}) {
   return findMinValidPodCount(guests) !== null;
 }
@@ -97,6 +101,7 @@ module.exports = {
   normalizeFamilyGuests,
   hasUnder13Guests,
   getBillableGuestCount,
+  getPrimaryGuestCount,
   getDisplayGuestCount,
   isAllowedGuestCombination,
   isFamilyCompositionAllowed,

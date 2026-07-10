@@ -13,7 +13,6 @@ const {
   getBillableGuestCount,
   getDisplayGuestCount,
   isFamilyCompositionAllowed,
-  isAllowedGuestCombination,
   getMaxPopUpBeds,
 } = require("../utils/familyRules");
 const { hasCapacityForStay } = require("../services/inventoryService");
@@ -318,12 +317,6 @@ async function createBooking(req, res, next) {
     if (billableGuests < podsRequested) {
       return res.status(400).json({
         error: "Guests count must be at least equal to pods count.",
-      });
-    }
-
-    if (!isAllowedGuestCombination(guestCounts)) {
-      return res.status(400).json({
-        error: "This guest combination is not available for booking.",
       });
     }
 

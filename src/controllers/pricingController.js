@@ -1,5 +1,5 @@
 const { resolvePodAllocation } = require("../utils/guestAllocation");
-const { normalizeFamilyGuests, isAllowedGuestCombination } = require("../utils/familyRules");
+const { normalizeFamilyGuests, isFamilyCompositionAllowed } = require("../utils/familyRules");
 const {
   mergePricingConfig,
   normalizeExtras,
@@ -48,9 +48,10 @@ async function quotePricing(req, res, next) {
     }
 
     const guestCounts = normalizeFamilyGuests(guests);
-    if (!isAllowedGuestCombination(guestCounts)) {
+    if (!isFamilyCompositionAllowed(guestCounts, podCount)) {
       return res.status(400).json({
-        error: "This guest combination is not available for booking.",
+        error:
+          "This guest combination cannot be accommodated in the selected number of domes.",
       });
     }
 

@@ -27,20 +27,9 @@ function getAgeMultiplier(guestType) {
   return 1;
 }
 
-function isOneAdultTwoChildrenOnePod(guests, podCount) {
-  return (
-    podCount === 1 &&
-    guests.adults === 1 &&
-    guests.teenagers === 0 &&
-    guests.children === 2 &&
-    guests.toddlers === 0
-  );
-}
-
 /**
  * Distribute guests across domes.
- * Per dome: up to 2 adults/teens + 1 child/toddler + 1 infant.
- * Exception: 1 adult + 2 children may share a single dome.
+ * Per dome: up to 3 of adult/teen/child/toddler + 1 infant (infant only with an adult).
  * @returns {string[][]} pods[p] = guest type tokens
  */
 function allocateGuestsToPods(guests, podCount) {
@@ -50,34 +39,21 @@ function allocateGuestsToPods(guests, podCount) {
   let children = guests.children;
   let toddlers = guests.toddlers;
   let infants = guests.infants;
-  const allowTripleOccupancy = isOneAdultTwoChildrenOnePod(guests, podCount);
 
   const pushToPod = (p, type) => {
     if (p < 0 || p >= podCount) return false;
-    const allowTriple = allowTripleOccupancy && p === 0;
-    const primary = pods[p].filter((g) => g === "adult" || g === "teen").length;
-    const childLike = pods[p].filter(
-      (g) => g === "child" || g === "toddler",
-    ).length;
-    const infants = pods[p].filter((g) => g === "infant").length;
+    const occupancy = pods[p].filter((g) => g !== "infant").length;
+    const infantCount = pods[p].filter((g) => g === "infant").length;
+    const hasAdult = pods[p].some((g) => g === "adult");
 
     if (type === "infant") {
-      if (infants >= 1) return false;
+      if (infantCount >= 1 || !hasAdult) return false;
       pods[p].push("infant");
       return true;
     }
-    if (type === "adult" || type === "teen") {
-      if (primary >= 2) return false;
-      pods[p].push(type);
-      return true;
-    }
-    if (type === "child" || type === "toddler") {
-      const maxChildLike = allowTriple ? 2 : 1;
-      if (childLike >= maxChildLike) return false;
-      pods[p].push(type);
-      return true;
-    }
-    return false;
+    if (occupancy >= 3) return false;
+    pods[p].push(type);
+    return true;
   };
 
   // Adults spread one per dome first.

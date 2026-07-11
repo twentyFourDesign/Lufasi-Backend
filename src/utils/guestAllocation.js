@@ -46,20 +46,14 @@ function isOneAdultTwoChildrenOnePod(guests, podCount) {
 
 function canAddGuestToPod(podGuests, type, guests, podCount, podIndex) {
   if (!GUEST_TYPE_ORDER.includes(type)) return false;
-  const allowTriple =
-    isOneAdultTwoChildrenOnePod(guests, podCount) && podIndex === 0;
-  const primary = podGuests.filter((g) => g === "adult" || g === "teen").length;
-  const childLike = podGuests.filter(
-    (g) => g === "child" || g === "toddler",
-  ).length;
+  const occupancy = podGuests.filter((g) => g !== "infant").length;
   const infants = podGuests.filter((g) => g === "infant").length;
+  const hasAdult = podGuests.some((g) => g === "adult");
 
-  if (type === "infant") return infants < 1;
-  if (type === "adult" || type === "teen") return primary < 2;
-  if (type === "child" || type === "toddler") {
-    return allowTriple ? childLike < 2 : childLike < 1;
+  if (type === "infant") {
+    return infants < 1 && hasAdult;
   }
-  return false;
+  return occupancy < 3;
 }
 
 function podAllocationFromDomeDetails(domeDetails) {
@@ -88,22 +82,17 @@ function validatePodAllocation(podAllocation, guests, podCount) {
   const pods = Number(podCount) || 1;
   for (let i = 0; i < podAllocation.length; i++) {
     const pod = podAllocation[i] || [];
-    const allowTriple = isOneAdultTwoChildrenOnePod(g, pods) && i === 0;
-    const primary = pod.filter((t) => t === "adult" || t === "teen").length;
-    const childLike = pod.filter((t) => t === "child" || t === "toddler").length;
+    const occupancy = pod.filter((t) => t !== "infant").length;
     const infants = pod.filter((t) => t === "infant").length;
-    if (primary > 2) {
-      errors.push(`Dome ${i + 1} can have at most 2 adults/teens.`);
-    }
-    if (childLike > (allowTriple ? 2 : 1)) {
-      errors.push(
-        allowTriple
-          ? `Dome ${i + 1} can have at most 2 children in this mix.`
-          : `Dome ${i + 1} can have at most 1 child or toddler.`,
-      );
+    const hasAdult = pod.some((t) => t === "adult");
+    if (occupancy > 3) {
+      errors.push(`Dome ${i + 1} can have at most 3 guests (plus 1 infant).`);
     }
     if (infants > 1) {
       errors.push(`Dome ${i + 1} can only have one infant.`);
+    }
+    if (infants > 0 && !hasAdult) {
+      errors.push(`Dome ${i + 1}: an infant requires an adult in the same dome.`);
     }
   }
 

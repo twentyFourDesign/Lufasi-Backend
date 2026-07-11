@@ -1,13 +1,12 @@
 /**
- * Original family / dome occupancy rules:
+ * Client dome occupancy rules:
  *
- * Per dome maximum:
- * - 2 adults/teens (primary guests)
- * - + 1 child (4–12) or toddler (1–3) sharing / optional pop-up bed
- * - + 1 infant (0–1, free)
- *
- * Exception: 1 adult + 2 children may share a single dome.
+ * - Max 3 guests per dome from: adults, teens, children, toddlers
+ * - Plus 1 infant only when an adult is present
+ * - 2 adults + 2 children → 2 domes; 1 adult + 2 children → 1 dome
  */
+
+const MAX_GUESTS_PER_DOME = 3;
 
 function normalizeFamilyGuests(guests = {}) {
   return {
@@ -24,9 +23,13 @@ function hasUnder13Guests(guests = {}) {
   return g.infants + g.toddlers + g.children > 0;
 }
 
-function getBillableGuestCount(guests = {}) {
+function getOccupancyGuestCount(guests = {}) {
   const g = normalizeFamilyGuests(guests);
   return g.adults + g.teenagers + g.toddlers + g.children;
+}
+
+function getBillableGuestCount(guests = {}) {
+  return getOccupancyGuestCount(guests);
 }
 
 function getPrimaryGuestCount(guests = {}) {
@@ -39,34 +42,18 @@ function getDisplayGuestCount(guests = {}) {
   return g.adults + g.teenagers + g.toddlers + g.children + g.infants;
 }
 
-function isOneAdultTwoChildrenOnePod(g, pods) {
-  return (
-    pods === 1 &&
-    g.adults === 1 &&
-    g.teenagers === 0 &&
-    g.children === 2 &&
-    g.toddlers === 0
-  );
-}
-
 function isFamilyCompositionAllowed(guests = {}, podCount = 1) {
   const g = normalizeFamilyGuests(guests);
   const pods = Number(podCount) || 1;
+  const occupancy = getOccupancyGuestCount(g);
   const primary = getPrimaryGuestCount(g);
-  const childLikeGuests = g.toddlers + g.children;
-  const triple = isOneAdultTwoChildrenOnePod(g, pods);
 
   if (pods < 1 || pods > 6) return false;
   if (primary < 1) return false;
   if (primary < pods) return false;
-  if (primary > pods * 2) return false;
+  if (occupancy > pods * MAX_GUESTS_PER_DOME) return false;
   if (g.infants > pods) return false;
-
-  if (triple) {
-    return g.infants <= 1;
-  }
-
-  if (childLikeGuests > pods) return false;
+  if (g.infants > 0 && g.adults < 1) return false;
 
   return true;
 }
@@ -98,8 +85,10 @@ function getMaxPopUpBeds(guests = {}, podCount = 1) {
 }
 
 module.exports = {
+  MAX_GUESTS_PER_DOME,
   normalizeFamilyGuests,
   hasUnder13Guests,
+  getOccupancyGuestCount,
   getBillableGuestCount,
   getPrimaryGuestCount,
   getDisplayGuestCount,

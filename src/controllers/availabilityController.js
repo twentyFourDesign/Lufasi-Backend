@@ -96,8 +96,8 @@ async function checkAvailability(req, res, next) {
         price: parseFloat(pod.baseAdultPrice),
         available: isAvailable,
         tags:
-          typeof pod.rules === "string"
-            ? pod.rules.split(",").map((tag) => tag.trim())
+          typeof pod.amenities === "string" && pod.amenities.trim()
+            ? pod.amenities.split(",").map((tag) => tag.trim()).filter(Boolean)
             : [],
         img:
           getPrimaryPodImageUrl(pod) ||

@@ -2,16 +2,16 @@ const db = require("../models");
 
 const DEFAULT_PRICING_CONFIG = {
   id: 1,
-  basePricePerPod: 400000,
-  extraGuestFee: 100000,
-  basePricePerPodOffPeak: 325000,
-  basePricePerPodPeak: 400000,
-  extraGuestFeeOffPeak: 100000,
-  extraGuestFeePeak: 100000,
+  basePricePerPod: 300000,
+  extraGuestFee: 200000,
+  basePricePerPodOffPeak: 300000,
+  basePricePerPodPeak: 325000,
+  extraGuestFeeOffPeak: 200000,
+  extraGuestFeePeak: 225000,
   maxGuestsPerPod: 2,
   minGuestsPerPod: 1,
   totalPodsAvailable: 6,
-  twelveGuestDiscountPercent: 10,
+  twelveGuestDiscountPercent: 0,
   currency: "NGN",
 };
 

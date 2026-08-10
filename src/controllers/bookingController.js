@@ -39,18 +39,44 @@ async function getPricingConfigOrDefault() {
   if (!config) {
     return {
       id: 1,
-      basePricePerPod: 400000,
-      extraGuestFee: 100000,
+      basePricePerPod: 300000,
+      extraGuestFee: 200000,
+      basePricePerPodOffPeak: 300000,
+      basePricePerPodPeak: 325000,
+      extraGuestFeeOffPeak: 200000,
+      extraGuestFeePeak: 225000,
       maxGuestsPerPod: 2,
       minGuestsPerPod: 1,
       totalPodsAvailable: 6,
-      twelveGuestDiscountPercent: 10,
+      twelveGuestDiscountPercent: 0,
       currency: "NGN",
-      weekdayPeakPercent: 0,
-      weekdayOffPeakPercent: 0,
     };
   }
-  return config;
+
+  // Normalize so peak/off-peak never fall through as null → 0.
+  const legacyBase = Number(config.basePricePerPod) || 300000;
+  const legacyExtra = Number(config.extraGuestFee) || 200000;
+  return {
+    ...config.toJSON(),
+    basePricePerPod: legacyBase,
+    extraGuestFee: legacyExtra,
+    basePricePerPodOffPeak:
+      Number(config.basePricePerPodOffPeak) > 0
+        ? Number(config.basePricePerPodOffPeak)
+        : legacyBase,
+    basePricePerPodPeak:
+      Number(config.basePricePerPodPeak) > 0
+        ? Number(config.basePricePerPodPeak)
+        : legacyBase,
+    extraGuestFeeOffPeak:
+      Number(config.extraGuestFeeOffPeak) > 0
+        ? Number(config.extraGuestFeeOffPeak)
+        : legacyExtra,
+    extraGuestFeePeak:
+      Number(config.extraGuestFeePeak) > 0
+        ? Number(config.extraGuestFeePeak)
+        : legacyExtra,
+  };
 }
 
 async function calculateBaseAndExtraForStay({

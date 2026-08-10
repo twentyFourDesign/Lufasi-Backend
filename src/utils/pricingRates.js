@@ -3,13 +3,15 @@
  */
 
 function num(v, fallback = 0) {
+  // null/"" must not become 0 via Number(null).
+  if (v === null || v === undefined || v === "") return fallback;
   const n = Number(v);
-  return Number.isFinite(n) ? n : fallback;
+  return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
 function getNightRatesFromConfig(config, isPeakNight) {
-  const legacyBase = num(config?.basePricePerPod ?? config?.base_price_per_pod, 400000);
-  const legacyExtra = num(config?.extraGuestFee ?? config?.extra_guest_fee, 100000);
+  const legacyBase = num(config?.basePricePerPod ?? config?.base_price_per_pod, 300000);
+  const legacyExtra = num(config?.extraGuestFee ?? config?.extra_guest_fee, 200000);
 
   if (isPeakNight) {
     return {
@@ -38,8 +40,8 @@ function getNightRatesFromConfig(config, isPeakNight) {
 
 function pricingConfigToApi(config) {
   const c = config || {};
-  const legacyBase = num(c.basePricePerPod, 400000);
-  const legacyExtra = num(c.extraGuestFee, 100000);
+  const legacyBase = num(c.basePricePerPod, 300000);
+  const legacyExtra = num(c.extraGuestFee, 200000);
   const offPeakBase = num(
     c.basePricePerPodOffPeak ?? c.base_price_per_pod_off_peak,
     legacyBase,

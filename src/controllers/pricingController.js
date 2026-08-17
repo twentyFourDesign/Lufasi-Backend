@@ -28,6 +28,7 @@ async function quotePricing(req, res, next) {
       podAllocation: podAllocationBody,
       domeDetails = [],
       extras = [],
+      alcoholPackageIncluded = true,
       pricingConfig: pricingConfigOverride,
       seasonalRates: seasonalRatesOverride,
       applyTwelveGuestDiscount = true,
@@ -103,6 +104,7 @@ async function quotePricing(req, res, next) {
       applyTwelveGuestDiscount,
       includeNightBreakdown,
       podAllocation: podAllocationOverride,
+      alcoholPackageIncluded,
     });
 
     res.json({

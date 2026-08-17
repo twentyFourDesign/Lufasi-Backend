@@ -142,6 +142,18 @@ module.exports = (sequelize) => {
         allowNull: true,
         field: "extra_personalizations",
       },
+      alcoholPackageIncluded: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: true,
+        field: "alcohol_package_included",
+      },
+      alcoholOptOutCredit: {
+        type: DataTypes.DECIMAL(12, 2),
+        allowNull: false,
+        defaultValue: 0,
+        field: "alcohol_opt_out_credit",
+      },
       expiresAt: { type: DataTypes.DATE, allowNull: true },
       bookingSource: {
         type: DataTypes.STRING(50),

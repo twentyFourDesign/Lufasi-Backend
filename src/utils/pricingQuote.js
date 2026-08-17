@@ -8,6 +8,7 @@ const {
   getDisplayGuestCount,
   isFamilyCompositionAllowed,
 } = require("./familyRules");
+const { calculateAlcoholOptOutCredit } = require("./alcoholPackage");
 
 const TEEN_RATE_MULTIPLIER = 0.75;
 const CHILD_RATE_MULTIPLIER = 0.5;
@@ -61,6 +62,7 @@ function buildPricingQuote({
   applyTwelveGuestDiscount = true,
   includeNightBreakdown = true,
   podAllocation: podAllocationOverride = null,
+  alcoholPackageIncluded = true,
 }) {
   const stayPricing = calculateStayRoomSubtotal({
     checkIn: checkInDate,
@@ -78,8 +80,17 @@ function buildPricingQuote({
     0,
   );
 
+  const alcoholOptOutCredit = calculateAlcoholOptOutCredit({
+    alcoholPackageIncluded,
+    guests: guestCounts,
+    nights: stayPricing.nights,
+  });
+
   const roomSubtotal = stayPricing.subtotal;
-  const subTotalWithExtras = roomSubtotal + extrasTotal;
+  const subTotalWithExtras = Math.max(
+    0,
+    roomSubtotal + extrasTotal - alcoholOptOutCredit,
+  );
 
   const billableGuests = getBillableGuestCount(guestCounts);
   const displayGuests = getDisplayGuestCount(guestCounts);
@@ -178,6 +189,10 @@ function buildPricingQuote({
     extras: {
       items: normalizedExtras,
       total: extrasTotal,
+    },
+    alcoholPackage: {
+      included: alcoholPackageIncluded !== false,
+      optOutCredit: alcoholOptOutCredit,
     },
     twelveGuestDiscount: {
       applied: twelveGuestDiscountAmount > 0,

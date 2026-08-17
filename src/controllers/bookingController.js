@@ -21,6 +21,10 @@ const { withAdvisoryLock, INVENTORY_LOCK_KEY } = require("../utils/advisoryLock"
 const { triggerAriPushForStay } = require("../services/channexAriService");
 const { getActiveCalendarRows } = require("../utils/inventoryHolds");
 const { iterStayNights, toYmd } = require("../utils/weekdayPeakPricing");
+const {
+  isAlcoholPackageIncluded,
+  calculateAlcoholOptOutCredit,
+} = require("../utils/alcoholPackage");
 
 function scheduleChannexSync(checkIn, checkOut) {
   triggerAriPushForStay(checkIn, checkOut).catch((err) => {
@@ -243,6 +247,7 @@ async function createBooking(req, res, next) {
       domeDetails = [],
       welcomeNote = null,
       extraPersonalizations = null,
+      alcoholPackageIncluded,
     } = payload;
     const bookingData = {
       podId: podId,
@@ -275,6 +280,7 @@ async function createBooking(req, res, next) {
       domeDetails,
       welcomeNote,
       extraPersonalizations,
+      alcoholPackageIncluded: isAlcoholPackageIncluded(alcoholPackageIncluded),
     };
 
     // Basic validations
@@ -487,8 +493,30 @@ async function createBooking(req, res, next) {
         domeDetails: domeDetailsPayload,
       });
 
+    const alcoholOptOutCredit = calculateAlcoholOptOutCredit({
+      alcoholPackageIncluded: bookingData.alcoholPackageIncluded,
+      guests: guestCounts,
+      nights,
+    });
+
+    let extrasTotal = 0;
+    if (bookingData.extras?.length) {
+      for (const ex of bookingData.extras) {
+        const extraModel = await db.Extra.findByPk(ex.id);
+        if (!extraModel) continue;
+        extrasTotal +=
+          parseFloat(extraModel.price || 0) * (Number(ex.quantity) || 1);
+      }
+    }
+
     let calculatedTotal =
-      baseForStay + extraForStay + teenForStay + toddlerForStay + childForStay;
+      baseForStay +
+      extraForStay +
+      teenForStay +
+      toddlerForStay +
+      childForStay +
+      extrasTotal -
+      alcoholOptOutCredit;
 
     let twelveGuestDiscountApplied = false;
     let twelveGuestDiscountAmount = 0;
@@ -614,6 +642,10 @@ async function createBooking(req, res, next) {
         type: "Full Board",
         cost: 0,
         status: "MANDATORY",
+      },
+      alcohol_package: {
+        included: bookingData.alcoholPackageIncluded,
+        optOutCredit: alcoholOptOutCredit,
       },
       twelve_guest_discount: {
         applied: twelveGuestDiscountApplied,
@@ -790,6 +822,8 @@ async function createBooking(req, res, next) {
       domeDetails: bookingData.domeDetails,
       welcomeNote: bookingData.welcomeNote,
       extraPersonalizations: bookingData.extraPersonalizations,
+      alcoholPackageIncluded: bookingData.alcoholPackageIncluded,
+      alcoholOptOutCredit,
       expiresAt: expiresAt,
       discountId: appliedDiscountId,
       voucherId: appliedVoucherId,
@@ -1173,6 +1207,7 @@ async function findBooking(req, res, next) {
       // Additional properties
       welcomeNote: booking.welcomeNote,
       extraPersonalizations: booking.extraPersonalizations,
+      alcoholPackageIncluded: booking.alcoholPackageIncluded !== false,
       createdAt: booking.createdAt,
       updatedAt: booking.updatedAt,
     };

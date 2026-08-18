@@ -25,6 +25,7 @@ const {
   isAlcoholPackageIncluded,
   calculateAlcoholOptOutCredit,
 } = require("../utils/alcoholPackage");
+const { applyVoucherToAmountDue } = require("../utils/voucherCredit");
 
 function scheduleChannexSync(checkIn, checkOut) {
   triggerAriPushForStay(checkIn, checkOut).catch((err) => {
@@ -561,7 +562,7 @@ async function createBooking(req, res, next) {
       }
     }
 
-    // --- APPLY VOUCHER CODE ---
+    // --- APPLY VOUCHER CODE (credit against tax-inclusive amount due) ---
     let appliedVoucherId = null;
     let voucherAmount = 0;
     if (voucherCode) {
@@ -577,17 +578,14 @@ async function createBooking(req, res, next) {
         if (!isNotStarted && !isExpired && !limitReached) {
           appliedVoucherId = v.id;
           voucherAmount = Number(v.value);
-          calculatedTotal -= voucherAmount;
         }
       }
     }
 
-    // Calculate complete price BEFORE voucher/discounts but including room and extras
-    const preVoucherTotal = calculatedTotal;
-    const amountBeforeVoucher = Math.max(0, preVoucherTotal) * 1.125;
-
     const totalBeforeTax = Math.max(0, calculatedTotal);
-    const totalPrice = totalBeforeTax * 1.125;
+    const amountDueBeforeVoucher = Math.round(totalBeforeTax * 1.125);
+    const { applied: cappedVoucherAmount, remaining: totalPrice } =
+      applyVoucherToAmountDue(amountDueBeforeVoucher, voucherAmount);
 
     const pricingBreakdown = {
       baseRate: Number(pricingConfig.basePricePerPod),
@@ -661,7 +659,7 @@ async function createBooking(req, res, next) {
       } : null,
       applied_voucher: appliedVoucherId ? {
         code: voucherCode.toUpperCase(),
-        amount: voucherAmount
+        amount: cappedVoucherAmount
       } : null,
       peak_rate_adjustment: peakRateInfo ? {
         name: peakRateInfo.name,
@@ -883,10 +881,6 @@ async function createBooking(req, res, next) {
 
     // If voucher was applied, record it as a payment
     if (appliedVoucherId) {
-      // The voucher covers its value or up to the pre-voucher total
-      // We record the amount that was subtracted
-      // Capping voucher payment amount at what it actually covered
-      const cappedVoucherAmount = Math.min(voucherAmount, amountBeforeVoucher);
       await db.BookingPayment.create({
         bookingId: booking.id,
         amount: cappedVoucherAmount,

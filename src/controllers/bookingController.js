@@ -343,7 +343,7 @@ async function createBooking(req, res, next) {
       const visitDate = String(bookingData.checkIn || "").slice(0, 10);
       if (!isDayVisitBookable(visitDate)) {
         return res.status(400).json({
-          error: "Day visits can only be booked from tomorrow onwards.",
+          error: "Day visits can only be booked for tomorrow.",
         });
       }
       bookingData.checkIn = visitDate;

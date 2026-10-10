@@ -25,6 +25,12 @@ const {
   isAlcoholPackageIncluded,
   calculateAlcoholOptOutCredit,
 } = require("../utils/alcoholPackage");
+const {
+  isDayVisit,
+  applyStayRate,
+  nextCalendarDay,
+  isDayVisitBookable,
+} = require("../utils/stayType");
 const { applyVoucherToAmountDue } = require("../utils/voucherCredit");
 
 function scheduleChannexSync(checkIn, checkOut) {
@@ -249,6 +255,7 @@ async function createBooking(req, res, next) {
       welcomeNote = null,
       extraPersonalizations = null,
       alcoholPackageIncluded,
+      stayType,
     } = payload;
     const bookingData = {
       podId: podId,
@@ -282,6 +289,7 @@ async function createBooking(req, res, next) {
       welcomeNote,
       extraPersonalizations,
       alcoholPackageIncluded: isAlcoholPackageIncluded(alcoholPackageIncluded),
+      stayType: isDayVisit(stayType) ? "dayVisit" : "overnight",
     };
 
     // Basic validations
@@ -329,6 +337,17 @@ async function createBooking(req, res, next) {
       return res.status(400).json({
         error: "Pods are now exclusively available on a Full Board basis.",
       });
+    }
+
+    if (bookingData.stayType === "dayVisit") {
+      const visitDate = String(bookingData.checkIn || "").slice(0, 10);
+      if (!isDayVisitBookable(visitDate)) {
+        return res.status(400).json({
+          error: "Day visits can only be booked from tomorrow onwards.",
+        });
+      }
+      bookingData.checkIn = visitDate;
+      bookingData.checkOut = nextCalendarDay(visitDate);
     }
 
     const pricingConfig = await getPricingConfigOrDefault();
@@ -494,11 +513,14 @@ async function createBooking(req, res, next) {
         domeDetails: domeDetailsPayload,
       });
 
-    const alcoholOptOutCredit = calculateAlcoholOptOutCredit({
-      alcoholPackageIncluded: bookingData.alcoholPackageIncluded,
-      guests: guestCounts,
-      nights,
-    });
+    const alcoholOptOutCredit = applyStayRate(
+      calculateAlcoholOptOutCredit({
+        alcoholPackageIncluded: bookingData.alcoholPackageIncluded,
+        guests: guestCounts,
+        nights,
+      }),
+      bookingData.stayType,
+    );
 
     let extrasTotal = 0;
     if (bookingData.extras?.length) {
@@ -510,12 +532,18 @@ async function createBooking(req, res, next) {
       }
     }
 
+    const pricedBase = applyStayRate(baseForStay, bookingData.stayType);
+    const pricedExtra = applyStayRate(extraForStay, bookingData.stayType);
+    const pricedTeen = applyStayRate(teenForStay, bookingData.stayType);
+    const pricedToddler = applyStayRate(toddlerForStay, bookingData.stayType);
+    const pricedChild = applyStayRate(childForStay, bookingData.stayType);
+
     let calculatedTotal =
-      baseForStay +
-      extraForStay +
-      teenForStay +
-      toddlerForStay +
-      childForStay +
+      pricedBase +
+      pricedExtra +
+      pricedTeen +
+      pricedToddler +
+      pricedChild +
       extrasTotal -
       alcoholOptOutCredit;
 
@@ -530,7 +558,7 @@ async function createBooking(req, res, next) {
       const percentAsDecimal = configuredDiscountPercent / 100;
       twelveGuestDiscountApplied = true;
       twelveGuestDiscountAmount = Number(
-        (Number(baseForStay) * percentAsDecimal).toFixed(2),
+        (Number(pricedBase) * percentAsDecimal).toFixed(2),
       );
       calculatedTotal = calculatedTotal - twelveGuestDiscountAmount;
     }
@@ -800,8 +828,8 @@ async function createBooking(req, res, next) {
       podCount: bookingData.podCount,
       guestsCount: totalGuests,
       podsCount: podsRequested,
-      priceSnapshotBase: baseForStay,
-      priceSnapshotExtra: extraForStay + teenForStay + toddlerForStay + childForStay,
+      priceSnapshotBase: pricedBase,
+      priceSnapshotExtra: pricedExtra + pricedTeen + pricedToddler + pricedChild,
       identificationImageUrl,
       calculatedTotal,
       configBasePricePerPod: Number(pricingConfig.basePricePerPod),
@@ -822,6 +850,7 @@ async function createBooking(req, res, next) {
       extraPersonalizations: bookingData.extraPersonalizations,
       alcoholPackageIncluded: bookingData.alcoholPackageIncluded,
       alcoholOptOutCredit,
+      stayType: bookingData.stayType,
       expiresAt: expiresAt,
       discountId: appliedDiscountId,
       voucherId: appliedVoucherId,
@@ -1129,6 +1158,7 @@ async function findBooking(req, res, next) {
         checkOut: new Date(booking.checkOut),
       },
       numberOfNights,
+      stayType: booking.stayType || "overnight",
 
       // Guests
       guests: {

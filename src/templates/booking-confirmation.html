@@ -147,15 +147,15 @@
                               text-transform: uppercase;
                               margin-bottom: 4px;
                             ">
-                          Stay Dates
+                          {{stayHeading}}
                         </div>
                         <div style="
                               color: #333;
                               font-weight: 600;
                               font-size: 15px;
                             ">
-                          Check in: {{checkInDate}}
-                          <div style="font-size: 13px; font-weight: normal; color: #666; margin-top: 2px;">Check-In Time : 2pm</div>
+                          {{arrivalLabel}}: {{checkInDate}}
+                          <div style="font-size: 13px; font-weight: normal; color: #666; margin-top: 2px;">{{arrivalNote}}</div>
                         </div>
                         <div style="
                               color: #333;
@@ -163,8 +163,8 @@
                               font-size: 15px;
                               margin-top: 8px;
                             ">
-                          Check out: {{checkOutDate}}
-                          <div style="font-size: 13px; font-weight: normal; color: #666; margin-top: 2px;">Check-Out Time : 11am</div>
+                          {{departureLabel}}: {{departureValue}}
+                          <div style="font-size: 13px; font-weight: normal; color: #666; margin-top: 2px;">{{departureNote}}</div>
                         </div>
                       </td>
                       <td align="right" valign="middle">
@@ -175,7 +175,7 @@
                               border-radius: 8px;
                               font-weight: 600;
                               font-size: 14px;
-                            ">{{nights}} Nights</span>
+                            ">{{stayBadge}}</span>
                       </td>
                     </tr>
                   </table>

@@ -155,6 +155,12 @@ module.exports = (sequelize) => {
         field: "alcohol_opt_out_credit",
       },
       expiresAt: { type: DataTypes.DATE, allowNull: true },
+      stayType: {
+        type: DataTypes.STRING(20),
+        allowNull: false,
+        defaultValue: "overnight",
+        field: "stay_type",
+      },
       bookingSource: {
         type: DataTypes.STRING(50),
         allowNull: true,

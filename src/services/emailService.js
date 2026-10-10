@@ -348,6 +348,26 @@ class EmailService {
       const checkIn = new Date(booking.checkIn);
       const checkOut = new Date(booking.checkOut);
       const nights = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24)) || 1;
+      const dayVisit = booking.stayType === "dayVisit";
+      const stayCopy = dayVisit
+        ? {
+            stayHeading: "Day Visit",
+            arrivalLabel: "Visit",
+            arrivalNote: "Hours: 1pm–6pm",
+            departureLabel: "Hours",
+            departureValue: "1pm–6pm",
+            departureNote: "Same-day visit",
+            stayBadge: "1pm–6pm",
+          }
+        : {
+            stayHeading: "Stay Dates",
+            arrivalLabel: "Check in",
+            arrivalNote: "Check-In Time : 2pm",
+            departureLabel: "Check out",
+            departureValue: checkOutDate,
+            departureNote: "Check-Out Time : 11am",
+            stayBadge: `${nights} Nights`,
+          };
 
       // Calculate costs
       const totalPrice = parseFloat(booking.totalPrice || 0);
@@ -373,6 +393,13 @@ class EmailService {
         .replace(/{{podName}}/g, roomLabel)
         .replace(/{{checkInDate}}/g, checkInDate)
         .replace(/{{checkOutDate}}/g, checkOutDate)
+        .replace(/{{stayHeading}}/g, stayCopy.stayHeading)
+        .replace(/{{arrivalLabel}}/g, stayCopy.arrivalLabel)
+        .replace(/{{arrivalNote}}/g, stayCopy.arrivalNote)
+        .replace(/{{departureLabel}}/g, stayCopy.departureLabel)
+        .replace(/{{departureValue}}/g, stayCopy.departureValue)
+        .replace(/{{departureNote}}/g, stayCopy.departureNote)
+        .replace(/{{stayBadge}}/g, stayCopy.stayBadge)
         .replace(/{{nights}}/g, nights)
         .replace(/{{mealPlan}}/g, getBookingMealPlanLabel(booking))
         .replace(/{{visitors}}/g, visitors)
@@ -754,6 +781,7 @@ class EmailService {
     const checkIn = new Date(booking.checkIn);
     const checkOut = new Date(booking.checkOut);
     const nights = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24)) || 1;
+    const dayVisit = booking.stayType === "dayVisit";
 
     const totalPrice = parseFloat(booking.totalPrice || 0);
     const guestSummary = formatGuestCountSummary(booking);
@@ -830,16 +858,16 @@ class EmailService {
                   <td style="color: #333; font-weight: 600; font-size: 14px;">${roomLabel}</td>
                 </tr>
                 <tr>
-                  <td style="color: #666; font-size: 14px;">Check-in:</td>
+                  <td style="color: #666; font-size: 14px;">${dayVisit ? "Visit:" : "Check-in:"}</td>
                   <td style="color: #333; font-weight: 600; font-size: 14px;">${checkInDate}</td>
                 </tr>
                 <tr>
-                  <td style="color: #666; font-size: 14px;">Check-out:</td>
-                  <td style="color: #333; font-weight: 600; font-size: 14px;">${checkOutDate}</td>
+                  <td style="color: #666; font-size: 14px;">${dayVisit ? "Hours:" : "Check-out:"}</td>
+                  <td style="color: #333; font-weight: 600; font-size: 14px;">${dayVisit ? "1pm–6pm" : checkOutDate}</td>
                 </tr>
                 <tr>
-                  <td style="color: #666; font-size: 14px;">Nights:</td>
-                  <td style="color: #333; font-weight: 600; font-size: 14px;">${nights}</td>
+                  <td style="color: #666; font-size: 14px;">${dayVisit ? "Type:" : "Nights:"}</td>
+                  <td style="color: #333; font-weight: 600; font-size: 14px;">${dayVisit ? "Day Visitor" : nights}</td>
                 </tr>
                 <tr>
                   <td style="color: #666; font-size: 14px;">Guests:</td>

@@ -24,13 +24,14 @@ function nextCalendarDay(ymd) {
   return toYmd(date);
 }
 
-/** Visit date must be exactly tomorrow (booked the day before, not further ahead). */
+/** Visit date must be today or tomorrow. Later dates are not bookable. */
 function isDayVisitBookable(ymd, now = new Date()) {
   const visit = String(ymd || "").slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(visit)) return false;
-  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
-  return visit === toYmd(tomorrow);
+  return visit === toYmd(today) || visit === toYmd(tomorrow);
 }
 
 module.exports = {

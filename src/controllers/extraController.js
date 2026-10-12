@@ -60,13 +60,20 @@ async function getExtrasByCategory(req, res, next) {
 
     // Group extras by category
     const groupedExtras = extras.reduce((acc, extra) => {
-      const category = extra.category || "uncategorized";
+      const rawCategory = extra.category && String(extra.category).trim();
+      const uncategorized =
+        !rawCategory || rawCategory.toLowerCase() === "uncategorized";
+      const category = uncategorized ? "uncategorized" : rawCategory;
 
       if (!acc[category]) {
         acc[category] = {
           id: category.toLowerCase().replace(/\s+/g, "-"),
-          title: category.charAt(0).toUpperCase() + category.slice(1),
-          subtitle: `Premium ${category} options for your stay`,
+          title: uncategorized
+            ? "Floating Breakfast"
+            : category.charAt(0).toUpperCase() + category.slice(1),
+          subtitle: uncategorized
+            ? "Premium floating breakfast options for your stay"
+            : `Premium ${category} options for your stay`,
           category: category,
           options: [],
         };

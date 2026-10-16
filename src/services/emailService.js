@@ -3,6 +3,7 @@ const nodemailer = require("nodemailer");
 const fs = require("fs");
 const path = require("path");
 const emailConfig = require("../config/emailConfig");
+const { splitInclusiveTotal } = require("../utils/bookingFees");
 
 /** Selected dome name(s) for emails — prefers guest's domeDetails, then primary Pod. */
 function getBookingRoomLabel(booking, pod) {
@@ -371,8 +372,10 @@ class EmailService {
 
       // Calculate costs
       const totalPrice = parseFloat(booking.totalPrice || 0);
-      const subTotal = totalPrice * 0.9; // Approximate
-      const vat = totalPrice * 0.075; // 7.5% VAT
+      const feeSplit = splitInclusiveTotal(totalPrice);
+      const subTotal = feeSplit.subTotal;
+      const vat = feeSplit.taxAmount;
+      const serviceCharge = feeSplit.serviceChargeAmount;
       const extrasAmount = getBookingExtrasAmount(booking);
       const discount = parseFloat(booking.discount || 0);
 
@@ -410,6 +413,7 @@ class EmailService {
         .replace(/{{discount}}/g, discount.toLocaleString())
         .replace(/{{extrasAmount}}/g, extrasAmount.toLocaleString())
         .replace(/{{vat}}/g, vat.toLocaleString())
+        .replace(/{{serviceCharge}}/g, serviceCharge.toLocaleString())
         .replace(/{{totalPrice}}/g, totalPrice.toLocaleString())
         .replace(/{{contactEmail}}/g, emailConfig.from.address)
         .replace(/{{appBaseUrl}}/g, appBaseUrl);
@@ -441,8 +445,10 @@ class EmailService {
 
       // Calculate costs
       const totalPrice = parseFloat(booking.totalPrice || 0);
-      const subTotal = totalPrice * 0.9; // Approximate
-      const vat = totalPrice * 0.075; // 7.5% VAT
+      const feeSplit = splitInclusiveTotal(totalPrice);
+      const subTotal = feeSplit.subTotal;
+      const vat = feeSplit.taxAmount;
+      const serviceCharge = feeSplit.serviceChargeAmount;
       const extrasAmount = getBookingExtrasAmount(booking);
       const discount = parseFloat(booking.discount || 0);
 
@@ -474,6 +480,7 @@ class EmailService {
         .replace(/{{discount}}/g, discount.toLocaleString())
         .replace(/{{extrasAmount}}/g, extrasAmount.toLocaleString())
         .replace(/{{vat}}/g, vat.toLocaleString())
+        .replace(/{{serviceCharge}}/g, serviceCharge.toLocaleString())
         .replace(/{{refundStatus}}/g, refundStatus || "Pending Review")
         .replace(/{{refundAmount}}/g, totalPrice.toLocaleString())
         .replace(/{{totalPrice}}/g, totalPrice.toLocaleString())

@@ -32,6 +32,7 @@ const {
   isDayVisitBookable,
 } = require("../utils/stayType");
 const { applyVoucherToAmountDue } = require("../utils/voucherCredit");
+const { calculateBookingFees } = require("../utils/bookingFees");
 
 function scheduleChannexSync(checkIn, checkOut) {
   triggerAriPushForStay(checkIn, checkOut).catch((err) => {
@@ -611,7 +612,7 @@ async function createBooking(req, res, next) {
     }
 
     const totalBeforeTax = Math.max(0, calculatedTotal);
-    const amountDueBeforeVoucher = Math.round(totalBeforeTax * 1.125);
+    const { amountDue: amountDueBeforeVoucher } = calculateBookingFees(totalBeforeTax);
     const { applied: cappedVoucherAmount, remaining: totalPrice } =
       applyVoucherToAmountDue(amountDueBeforeVoucher, voucherAmount);
 
@@ -1006,13 +1007,11 @@ async function listBookings(req, res, next) {
     const bookingsWithExtraData = bookings.map(b => {
       const bJSON = b.toJSON();
       
-      // Calculate original total price (Room + Extras + 12.5% Tax)
-      // Since totalPrice in DB is (Room - Discounts) * 1.125, we try to reconstruct original room + extras
+      // Sticker price is room + extras plus 12.5% tax and 2.5% service charge.
       const extrasTotal = b.BookingExtras?.reduce((sum, be) => sum + parseFloat(be.totalPrice || 0), 0) || 0;
       const baseRoomTotal = (parseFloat(b.priceSnapshotBase || 0) + parseFloat(b.priceSnapshotExtra || 0));
-      
-      // The total original sticker price
-      bJSON.fullBookingPrice = (baseRoomTotal + extrasTotal) * 1.125;
+
+      bJSON.fullBookingPrice = calculateBookingFees(baseRoomTotal + extrasTotal).amountDue;
       
       return bJSON;
     });
@@ -1348,7 +1347,7 @@ async function updateBooking(req, res, next) {
         }
 
         const totalBeforeTax = priceCalc.total * nights;
-        updateData.totalPrice = totalBeforeTax * 1.125;
+        updateData.totalPrice = calculateBookingFees(totalBeforeTax).amountDue;
       }
     }
 

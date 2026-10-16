@@ -9,6 +9,12 @@ const {
   isFamilyCompositionAllowed,
 } = require("./familyRules");
 const { calculateAlcoholOptOutCredit } = require("./alcoholPackage");
+const {
+  CONSUMPTION_AND_VAT_RATE,
+  SERVICE_CHARGE_RATE,
+  TOTAL_FEE_RATE,
+  calculateBookingFees,
+} = require("./bookingFees");
 
 const TEEN_RATE_MULTIPLIER = 0.75;
 const CHILD_RATE_MULTIPLIER = 0.5;
@@ -107,8 +113,8 @@ function buildPricingQuote({
     0,
     subTotalWithExtras - twelveGuestDiscountAmount,
   );
-  const taxAmount = Math.round(subtotalBeforeTax * 0.125);
-  const totalWithTax = Math.round(subtotalBeforeTax * 1.125);
+  const { taxAmount, serviceChargeAmount, amountDue: totalWithTax } =
+    calculateBookingFees(subtotalBeforeTax);
   const familyAllowed = isFamilyCompositionAllowed(guestCounts, podCount);
 
   return {
@@ -206,8 +212,11 @@ function buildPricingQuote({
       subTotal: subTotalWithExtras,
       twelveGuestDiscount: twelveGuestDiscountAmount,
       subtotalBeforeTax,
-      taxRate: 0.125,
+      taxRate: CONSUMPTION_AND_VAT_RATE,
       taxAmount,
+      serviceChargeRate: SERVICE_CHARGE_RATE,
+      serviceChargeAmount,
+      totalFeeRate: TOTAL_FEE_RATE,
       total: totalWithTax,
       currency: pricingConfig.currency || "NGN",
     },

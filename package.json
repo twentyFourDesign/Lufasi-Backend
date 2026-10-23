@@ -4,8 +4,8 @@
   "description": "Lufasi Lodges Booking System - Backend",
   "main": "src/server.js",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "nodemon src/server.js",
+    "start": "node init && node src/server.js",
+    "dev": "node init && nodemon src/server.js",
     "db:sync": "node scripts/sync-db.js",
     "db:channex": "node scripts/create_channex_tables.js",
     "test:channex-load": "node scripts/channex-load-test.js",

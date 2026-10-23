@@ -1016,11 +1016,19 @@ async function listBookings(req, res, next) {
       return bJSON;
     });
 
-    const blocks = await db.CalendarAvailability.findAll({
-      where: { status: "blocked" },
+    const calendarRows = await db.CalendarAvailability.findAll({
+      where: { status: { [db.Sequelize.Op.in]: ["booked", "blocked"] } },
     });
+    const blocks = calendarRows.filter((row) => row.status === "blocked");
+    const bookedCells = calendarRows
+      .filter((row) => row.status === "booked" && row.bookingId)
+      .map((row) => ({
+        podId: row.podId,
+        date: row.date,
+        bookingId: row.bookingId,
+      }));
 
-    res.json({ bookings: bookingsWithExtraData, blocks });
+    res.json({ bookings: bookingsWithExtraData, blocks, bookedCells });
   } catch (err) {
     next(err);
   }
@@ -1629,11 +1637,27 @@ async function allocatePod(req, res, next) {
 
     const oldStatus = booking.bookingStatus;
 
-    // Update booking - we store the first podId as primary (for backward compatibility/single pod bookings)
-    // but the source of truth for multiple pods will be CalendarAvailability
+    // Keep guest/bed details, but replace the dome names with the pods just allocated.
+    // Otherwise the calendar still paints the original dome as well as the new one.
+    const previousDomes = Array.isArray(booking.domeDetails) ? booking.domeDetails : [];
+    const orderedPods = podIds.map((id) => pods.find((pod) => pod.id === id)).filter(Boolean);
+    const domeDetails = orderedPods.map((pod, index) => {
+      const previous =
+        previousDomes[index] && typeof previousDomes[index] === "object"
+          ? { ...previousDomes[index] }
+          : {};
+      return {
+        ...previous,
+        podId: pod.id,
+        podName: pod.podName,
+      };
+    });
+
+    // podId stays the first allocated dome. Calendar rows are the per-night source of truth.
     await booking.update(
       {
         podId: podIds[0],
+        domeDetails,
         bookingStatus: "ready_for_checkin",
       },
       { transaction: t },

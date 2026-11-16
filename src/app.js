@@ -11,7 +11,15 @@ const app = express();
 app.set("trust proxy", 1); // Trust first proxy (ngrok)
 
 app.use(cors());
-app.use(bodyParser.json({ limit: "10mb" }));
+app.use(
+  bodyParser.json({
+    limit: "10mb",
+    // Keep the raw bytes so webhook signatures can be checked against what was sent.
+    verify: (req, _res, buf) => {
+      req.rawBody = buf;
+    },
+  }),
+);
 app.use(bodyParser.urlencoded({ extended: true })); // Parse form data from payment page
 
 // Serve static files (images) from uploads directory

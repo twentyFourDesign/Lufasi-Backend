@@ -110,6 +110,7 @@ async function processNewOrModifiedRevision(revision, transaction) {
 
   const existingMap = await findExistingMap(revision);
   let booking = null;
+  let overbooked = false;
 
   if (existingMap?.bookingId) {
     booking = await db.Booking.findByPk(existingMap.bookingId, { transaction });
@@ -125,9 +126,12 @@ async function processNewOrModifiedRevision(revision, transaction) {
       { transaction },
     );
 
+    // The guest already holds a confirmed OTA reservation, so never refuse the
+    // import. Record it, flag it, and let staff re-allocate or relocate.
     if (!capacityOk) {
-      throw new Error(
-        `Cannot import OTA booking ${revision.otaReservationCode}: insufficient capacity`,
+      overbooked = true;
+      console.warn(
+        `[Channex] OTA booking ${revision.otaReservationCode} imported with no free dome (${revision.checkIn} to ${revision.checkOut})`,
       );
     }
 
@@ -197,7 +201,9 @@ async function processNewOrModifiedRevision(revision, transaction) {
       {
         id: uuidv4(),
         bookingId: booking.id,
-        action: `OTA booking imported from ${revision.otaName} via Channex`,
+        action: overbooked
+          ? `OVERBOOKED: OTA booking imported from ${revision.otaName} via Channex with no free dome for these dates. Re-allocate or relocate the guest.`
+          : `OTA booking imported from ${revision.otaName} via Channex`,
         oldStatus: null,
         newStatus: "confirmed_unassigned",
       },
@@ -259,7 +265,7 @@ async function processNewOrModifiedRevision(revision, transaction) {
     await db.ChannexBookingMap.create({ id: uuidv4(), ...mapData }, { transaction });
   }
 
-  return booking;
+  return { booking, overbooked };
 }
 
 async function processCancelledRevision(revision, transaction) {
@@ -315,12 +321,15 @@ async function processRevision(rawRevision) {
   }
 
   let booking = null;
+  let overbooked = false;
 
   await withAdvisoryLock(db.sequelize, INVENTORY_LOCK_KEY, async (transaction) => {
     if (revision.status === "cancelled") {
       booking = await processCancelledRevision(revision, transaction);
     } else {
-      booking = await processNewOrModifiedRevision(revision, transaction);
+      const imported = await processNewOrModifiedRevision(revision, transaction);
+      booking = imported.booking;
+      overbooked = imported.overbooked;
     }
   });
 
@@ -341,6 +350,18 @@ async function processRevision(rawRevision) {
     triggerAriPushForStay(booking.checkIn, booking.checkOut).catch((err) => {
       console.error("[Channex] Post-import ARI push failed:", err.message);
     });
+  }
+
+  // One alert per overbooked import: the revision is acknowledged above, so it
+  // is not pulled (or emailed) again.
+  if (overbooked && booking && emailConfig.isConfigured() && emailConfig.adminEmail) {
+    emailService
+      .sendEmail({
+        to: emailConfig.adminEmail,
+        subject: `OVERBOOKED: ${revision.otaName} booking ${booking.bookingReference}`,
+        html: `<p>${revision.otaName} reservation ${revision.otaReservationCode} (${booking.bookingReference}) for ${revision.checkIn} to ${revision.checkOut} was imported, but no dome is free on those dates.</p><p>Re-allocate it or relocate the guest.</p>`,
+      })
+      .catch(() => {});
   }
 
   return { success: true, bookingId: booking?.id, status: revision.status };

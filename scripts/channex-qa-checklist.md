@@ -21,7 +21,10 @@
 - [ ] Admin → Channel Manager → "Push Rates & Availability" succeeds
 - [ ] Preview table shows correct availability (0–6) per date
 - [ ] Preview rates match Pricing config (peak Fri-Sat, off-peak Sun-Thu, seasonal %)
-- [ ] Rates are ex-VAT (net) as configured
+- [ ] Rates equal Lufasi's pre-tax base price (no VAT division), and the OTA extranet taxes are 12.5% VAT + 2.5% service charge, so the OTA total matches the direct total
+- [ ] Editing a booking's dates in admin re-pushes both the old and the new dates
+- [ ] Cancelling an OTA booking in Lufasi admin is refused with a message to cancel on the OTA
+- [ ] An OTA booking with no free dome is still imported, logged as OVERBOOKED, and emailed once
 - [ ] After web booking created, availability decreases on Channex
 - [ ] After booking cancelled/expired, availability increases on Channex
 - [ ] After pricing save, rates re-push automatically

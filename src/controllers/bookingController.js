@@ -18,7 +18,7 @@ const {
 const { hasCapacityForStay } = require("../services/inventoryService");
 const { validateBlockedExtraDates } = require("../utils/extraBlockedDates");
 const { withAdvisoryLock, INVENTORY_LOCK_KEY } = require("../utils/advisoryLock");
-const { triggerAriPushForStay } = require("../services/channexAriService");
+const { syncStay } = require("../services/channelSyncService");
 const { getActiveCalendarRows } = require("../utils/inventoryHolds");
 const { iterStayNights, toYmd } = require("../utils/weekdayPeakPricing");
 const {
@@ -34,18 +34,20 @@ const {
 const { applyVoucherToAmountDue } = require("../utils/voucherCredit");
 const { calculateBookingFees } = require("../utils/bookingFees");
 
+/** Re-push availability to whichever channel manager is on (Beds24 or Channex). */
 function scheduleChannexSync(checkIn, checkOut) {
-  triggerAriPushForStay(checkIn, checkOut).catch((err) => {
-    console.error("[Channex] Post-booking ARI sync failed:", err.message);
-  });
+  syncStay(checkIn, checkOut);
 }
 
 const OTA_CANCEL_MESSAGE =
   "This booking came from an OTA. Cancel it on Booking.com or Expedia; the cancellation reaches Lufasi automatically and frees the dates.";
 
-/** An OTA-imported booking has a channel mapping row. */
+/** An OTA-imported booking has a channel mapping row (Beds24 or Channex). */
 async function findChannelMapping(bookingId, transaction) {
-  return db.ChannexBookingMap.findOne({ where: { bookingId }, transaction });
+  return (
+    (await db.Beds24BookingMap.findOne({ where: { bookingId }, transaction })) ||
+    (await db.ChannexBookingMap.findOne({ where: { bookingId }, transaction }))
+  );
 }
 
 // Helper to generate booking reference

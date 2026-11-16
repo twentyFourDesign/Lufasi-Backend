@@ -12,6 +12,7 @@ const adminRoutes = require("./admin");
 const uploadRoutes = require("./uploads");
 const configRoutes = require("./config");
 const channexRoutes = require("./channex");
+const beds24Routes = require("./beds24");
 const pricingRoutes = require("./pricing");
 
 function registerRoutes(app) {
@@ -29,6 +30,7 @@ function registerRoutes(app) {
     app.use("/config", configRoutes);
     app.use("/pricing", pricingRoutes);
     app.use("/channex", channexRoutes);
+    app.use("/beds24", beds24Routes);
 
     // Admin protected routes
     app.use("/admin", adminRoutes);

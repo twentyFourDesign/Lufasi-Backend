@@ -206,10 +206,7 @@ async function getPeakRates(req, res, next) {
 }
 
 function scheduleChannexAriPush(reason) {
-  const { triggerAriPush } = require("../services/channexAriService");
-  triggerAriPush({ idempotencyKey: `${reason}:${Date.now()}` }).catch((err) =>
-    console.error("[Channex] ARI push failed:", err.message),
-  );
+  require("../services/channelSyncService").syncAll(reason);
 }
 
 async function createPeakRate(req, res, next) {

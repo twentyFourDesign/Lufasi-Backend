@@ -25,6 +25,7 @@
 - [ ] Editing a booking's dates in admin re-pushes both the old and the new dates
 - [ ] Cancelling an OTA booking in Lufasi admin is refused with a message to cancel on the OTA
 - [ ] An OTA booking with no free dome is still imported, logged as OVERBOOKED, and emailed once
+- [ ] With the API key deliberately wrong, a web booking triggers two retries (about 20s and 90s later) and one admin email
 - [ ] After web booking created, availability decreases on Channex
 - [ ] After booking cancelled/expired, availability increases on Channex
 - [ ] After pricing save, rates re-push automatically

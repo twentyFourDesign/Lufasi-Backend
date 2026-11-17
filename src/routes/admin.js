@@ -91,6 +91,11 @@ router.get("/dashboard/summary", adminAuth, adminController.dashboardSummary);
 router.get("/guests", adminAuth, adminController.getGuestDetails);
 router.get("/logs", adminAuth, adminController.getBookingLogs);
 router.get("/reports/stats", adminAuth, adminController.getReportsStats);
+router.get(
+  "/reports/service-charge",
+  adminAuth,
+  require("../controllers/serviceChargeReportController").getServiceChargeReport,
+);
 
 router.post("/calendar/block", adminAuth, require("../controllers/bookingController").blockRoom);
 router.post("/calendar/unblock", adminAuth, require("../controllers/bookingController").unblockRoom);

@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { adminAuth } = require("../middleware/auth");
+const { adminAuth, superAdminAuth } = require("../middleware/auth");
 
 const podRoutes = require("./pods");
 const bookingRoutes = require("./bookings");
@@ -93,7 +93,7 @@ router.get("/logs", adminAuth, adminController.getBookingLogs);
 router.get("/reports/stats", adminAuth, adminController.getReportsStats);
 router.get(
   "/reports/service-charge",
-  adminAuth,
+  superAdminAuth, // financial report: Super Admin only; Admin and staff are refused
   require("../controllers/serviceChargeReportController").getServiceChargeReport,
 );
 

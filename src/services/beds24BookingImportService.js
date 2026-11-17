@@ -43,7 +43,9 @@ const ymd = (v) => String(v || "").slice(0, 10);
 /** UNVERIFIED channel codes; anything unknown is kept as Beds24 sent it. */
 function normaliseChannel(raw) {
   const c = String(raw.channel || raw.apiSource || raw.referer || "").toLowerCase();
-  if (!c) return "beds24";
+  // "direct" would make Lufasi treat an OTA-side booking as a website booking
+  // (payment guard, service charge report), so keep it labelled beds24.
+  if (!c || c === "direct") return "beds24";
   if (c.includes("booking")) return "booking.com";
   if (c.includes("expedia")) return "expedia";
   return c.slice(0, 50);

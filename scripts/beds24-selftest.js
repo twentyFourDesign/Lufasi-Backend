@@ -226,6 +226,27 @@ function beds24Raw(over = {}) {
     assert.deepEqual(seen, ["tok1", "tok1"]);
   });
 
+  await test("booking list also asks for cancelled bookings (live account ignores includeCancelled)", async () => {
+    const calls = [];
+    const orig = beds24Service.request;
+    beds24Service.request = async (method, path, opts) => {
+      calls.push(opts.params);
+      if (opts.params.status === "cancelled") return { data: [{ id: 7, status: "cancelled" }] };
+      return { data: [{ id: 5, status: "confirmed" }, { id: 7, status: "confirmed" }] };
+    };
+    try {
+      const rows = await beds24Service.getBookingsModifiedSince("2026-11-17T00:00:00Z");
+      assert.equal(calls.length, 2);
+      assert.equal(calls[0].status, undefined);
+      assert.equal(calls[1].status, "cancelled");
+      assert.ok(calls.every((c) => !("includeCancelled" in c)));
+      const byId = Object.fromEntries(rows.map((r) => [r.id, r.status]));
+      assert.deepEqual(byId, { 5: "confirmed", 7: "cancelled" }); // the cancelled row wins
+    } finally {
+      beds24Service.request = orig;
+    }
+  });
+
   await test("refreshes the token and retries once on 401", async () => {
     let n = 0;
     let tokens = 0;

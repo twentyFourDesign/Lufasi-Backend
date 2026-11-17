@@ -172,27 +172,37 @@ class Beds24Service {
   // --- Bookings ---
 
   /**
-   * Bookings changed since a time. UNVERIFIED filter name `modifiedFrom`.
-   * Fetches every page; Beds24 pages results ("pages.nextPageExists" /
-   * "page" param, UNVERIFIED).
+   * Bookings changed since a time. VERIFIED against a live account: the list
+   * call leaves cancelled bookings out unless you ask for them with
+   * status=cancelled (includeCancelled is ignored and the status value "all"
+   * is rejected), so we run the normal query and a cancelled-only query and
+   * merge the two. Paging ("pages.nextPageExists") is still UNVERIFIED.
    */
   async getBookingsModifiedSince(modifiedFrom) {
-    const all = [];
-    for (let page = 1; page <= 50; page++) {
-      const res = await this.request("GET", "/bookings", {
-        params: {
-          propertyId: this.config.propertyId,
-          modifiedFrom,
-          includeCancelled: true,
-          page,
-        },
-      });
-      const rows = Array.isArray(res) ? res : res?.data || [];
-      all.push(...rows);
-      const more = res?.pages?.nextPageExists ?? res?.pages?.next;
-      if (!more) break;
-    }
-    return all;
+    const fetchAll = async (extra) => {
+      const out = [];
+      for (let page = 1; page <= 50; page++) {
+        const res = await this.request("GET", "/bookings", {
+          params: {
+            propertyId: this.config.propertyId,
+            modifiedFrom,
+            ...extra,
+            page,
+          },
+        });
+        const rows = Array.isArray(res) ? res : res?.data || [];
+        out.push(...rows);
+        const more = res?.pages?.nextPageExists ?? res?.pages?.next;
+        if (!more) break;
+      }
+      return out;
+    };
+
+    const live = await fetchAll({});
+    const cancelled = await fetchAll({ status: "cancelled" });
+    const byId = new Map();
+    for (const row of [...live, ...cancelled]) byId.set(row.id, row);
+    return [...byId.values()];
   }
 
   async getBooking(id) {

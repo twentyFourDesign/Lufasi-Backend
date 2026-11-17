@@ -460,6 +460,13 @@ function beds24Raw(over = {}) {
     assert.equal(out.action, "ignored");
   });
 
+  await test("a booking Beds24 labels direct is still stored as an OTA (beds24) source", async () => {
+    resetDb();
+    const out = await importer.processBooking(beds24Raw({ id: 9100, channel: "direct" }));
+    assert.equal(out.action, "created");
+    assert.equal(db.Booking.rows[0].bookingSource, "beds24");
+  });
+
   await test("no free dome: still imported, flagged OVERBOOKED, no calendar rows, one email", async () => {
     resetDb();
     for (let i = 0; i < 6; i++) await addWebBooking(future(10), future(12));

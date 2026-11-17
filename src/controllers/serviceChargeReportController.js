@@ -3,15 +3,22 @@ const db = require("../models");
 const { splitInclusiveTotal, SERVICE_CHARGE_RATE } = require("../utils/bookingFees");
 
 /**
- * Bookings that count as earned revenue:
- *   paid / confirmed        payment received (online payment sets "confirmed")
- *   confirmed_unassigned    imported OTA booking, no dome allocated yet
- *   ready_for_checkin       any booking once a dome has been allocated to it
- * Pending, failed, abandoned, expired and cancelled bookings are left out.
+ * Direct and OTA bookings are reported separately and never added together.
+ *
+ * Direct bookings (made on the Lufasi site or by staff) count once payment is
+ * received: status paid/confirmed, or a successful payment record. The report
+ * does not look at the "ready_for_checkin" stage at all; that is only a step in
+ * the check-in process and says nothing about payment.
+ *
+ * OTA bookings (Booking.com, Expedia via Beds24) are collected by the OTA, so
+ * they count whenever the reservation is live, i.e. not cancelled, expired or
+ * failed.
  */
-const COUNTED_STATUSES = ["paid", "confirmed", "confirmed_unassigned", "ready_for_checkin"];
+const NOT_LIVE_STATUSES = ["cancelled", "expired", "failed", "abandoned"];
+const PAID_STATUSES = ["paid", "confirmed"];
 const GROUPS = ["day", "month", "year"];
 const MAX_PERIODS = 800;
+const PAYMENT_LOOKUP_CHUNK = 500;
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
 const ymd = (v) => String(v).slice(0, 10);
@@ -48,7 +55,7 @@ function listPeriods(startDate, endDate, groupBy) {
  * GET /admin/reports/service-charge
  *   startDate, endDate  YYYY-MM-DD (default: this calendar year)
  *   groupBy             day | month | year (default month)
- *   source              all | direct | ota (default all)
+ *   source              direct | ota (default direct); the two are never combined
  *
  * Bookings are placed in a period by check-in date, matching the Reports page.
  * Prices stored on bookings include the 12.5% VAT and 2.5% service charge, so
@@ -60,7 +67,7 @@ async function getServiceChargeReport(req, res, next) {
     const startDate = req.query.startDate || `${year}-01-01`;
     const endDate = req.query.endDate || `${year}-12-31`;
     const groupBy = GROUPS.includes(req.query.groupBy) ? req.query.groupBy : "month";
-    const source = ["all", "direct", "ota"].includes(req.query.source) ? req.query.source : "all";
+    const source = req.query.source === "ota" ? "ota" : "direct";
 
     if (!isValidYmd(startDate) || !isValidYmd(endDate)) {
       return res.status(400).json({ error: "startDate and endDate must be YYYY-MM-DD" });
@@ -70,20 +77,39 @@ async function getServiceChargeReport(req, res, next) {
     }
 
     const where = {
-      bookingStatus: { [Op.in]: COUNTED_STATUSES },
+      bookingStatus: { [Op.notIn]: NOT_LIVE_STATUSES },
       checkIn: { [Op.between]: [startDate, endDate] },
     };
     if (source === "direct") {
       where[Op.and] = [{ [Op.or]: [{ bookingSource: "direct" }, { bookingSource: null }] }];
-    } else if (source === "ota") {
+    } else {
       where.bookingSource = { [Op.and]: [{ [Op.ne]: "direct" }, { [Op.ne]: null }] };
     }
 
-    const bookings = await db.Booking.findAll({
+    let bookings = await db.Booking.findAll({
       where,
       include: [{ model: db.GuestDirectory, attributes: ["fullName"] }],
       order: [["checkIn", "ASC"]],
     });
+
+    if (source === "direct") {
+      // Keep only bookings whose payment was received.
+      const paidIds = new Set();
+      const ids = bookings.map((b) => b.id);
+      for (let i = 0; i < ids.length; i += PAYMENT_LOOKUP_CHUNK) {
+        const payments = await db.BookingPayment.findAll({
+          where: {
+            bookingId: { [Op.in]: ids.slice(i, i + PAYMENT_LOOKUP_CHUNK) },
+            paymentStatus: "successful",
+          },
+          attributes: ["bookingId"],
+        });
+        payments.forEach((p) => paidIds.add(p.bookingId));
+      }
+      bookings = bookings.filter(
+        (b) => PAID_STATUSES.includes(b.bookingStatus) || paidIds.has(b.id),
+      );
+    }
 
     const periods = new Map(
       listPeriods(startDate, endDate, groupBy).map((k) => [

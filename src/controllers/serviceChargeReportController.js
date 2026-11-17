@@ -2,8 +2,14 @@ const { Op } = require("sequelize");
 const db = require("../models");
 const { splitInclusiveTotal, SERVICE_CHARGE_RATE } = require("../utils/bookingFees");
 
-/** Bookings that count as earned revenue (same basis as the Reports page, plus imported OTA bookings). */
-const COUNTED_STATUSES = ["paid", "confirmed", "confirmed_unassigned"];
+/**
+ * Bookings that count as earned revenue:
+ *   paid / confirmed        payment received (online payment sets "confirmed")
+ *   confirmed_unassigned    imported OTA booking, no dome allocated yet
+ *   ready_for_checkin       any booking once a dome has been allocated to it
+ * Pending, failed, abandoned, expired and cancelled bookings are left out.
+ */
+const COUNTED_STATUSES = ["paid", "confirmed", "confirmed_unassigned", "ready_for_checkin"];
 const GROUPS = ["day", "month", "year"];
 const MAX_PERIODS = 800;
 

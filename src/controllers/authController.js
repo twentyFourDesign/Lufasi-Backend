@@ -18,7 +18,7 @@ async function adminLogin(req, res, next) {
     if (!valid) return res.status(401).json({ error: "Invalid credentials" });
 
     // Check if user has admin or staff role
-    if (!["admin", "staff"].includes(user.role)) {
+    if (!["super_admin", "admin", "staff"].includes(user.role)) {
       return res.status(403).json({ error: "Access denied. Admin/Staff only." });
     }
 
@@ -64,6 +64,13 @@ async function createAdmin(req, res, next) {
       }
     }
 
+    // Only a Super Admin can create another Super Admin
+    if (targetRole === "super_admin" && requestingUser.role !== "super_admin") {
+      return res.status(403).json({
+        error: "Only a Super Admin can create Super Admin accounts"
+      });
+    }
+
     // Check if user already exists
     const existingUser = await db.User.findOne({ where: { email } });
     if (existingUser) {
@@ -104,7 +111,7 @@ async function getAdmins(req, res, next) {
   try {
     const users = await db.User.findAll({
       where: {
-        role: ["admin", "staff"]
+        role: ["super_admin", "admin", "staff"]
       },
       attributes: ["id", "fullName", "email", "role", "phone", "createdAt"],
       order: [["createdAt", "DESC"]],
@@ -129,11 +136,30 @@ async function updateAdmin(req, res, next) {
       return res.status(404).json({ error: "User not found" });
     }
 
+    // Super Admin accounts (and the Super Admin role) are managed by Super Admins only,
+    // otherwise an Admin could reset a Super Admin's password or promote themselves.
+    const requestingUser = req.admin;
+    const requesterIsSuper = requestingUser?.role === "super_admin";
+    if (!requesterIsSuper && (user.role === "super_admin" || role === "super_admin")) {
+      return res.status(403).json({
+        error: "Only a Super Admin can change Super Admin accounts"
+      });
+    }
+    // Never leave the system without a Super Admin
+    if (user.role === "super_admin" && role && role !== "super_admin") {
+      const supers = await db.User.count({ where: { role: "super_admin" } });
+      if (supers <= 1) {
+        return res.status(400).json({
+          error: "Cannot change the role of the only Super Admin"
+        });
+      }
+    }
+
     // Update fields
     if (fullName) user.fullName = fullName;
     if (email) user.email = email;
     if (phone !== undefined) user.phone = phone;
-    if (role && ["admin", "staff", "user"].includes(role)) {
+    if (role && ["super_admin", "admin", "staff", "user"].includes(role)) {
       user.role = role;
     }
 
@@ -175,6 +201,18 @@ async function deleteAdmin(req, res, next) {
     const user = await db.User.findByPk(id);
     if (!user) {
       return res.status(404).json({ error: "User not found" });
+    }
+
+    if (user.role === "super_admin") {
+      if (requestingUser.role !== "super_admin") {
+        return res.status(403).json({
+          error: "Only a Super Admin can delete a Super Admin account"
+        });
+      }
+      const supers = await db.User.count({ where: { role: "super_admin" } });
+      if (supers <= 1) {
+        return res.status(400).json({ error: "Cannot delete the only Super Admin" });
+      }
     }
 
     await user.destroy();

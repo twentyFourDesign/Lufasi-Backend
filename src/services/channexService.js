@@ -110,7 +110,8 @@ class ChannexService {
   // --- Webhook verification ---
 
   verifyWebhookSignature(signature, rawBody) {
-    if (!this.config.webhookSecret) return true; // dev mode
+    // Never accept unsigned calls: without a secret nothing can be verified.
+    if (!this.config.webhookSecret) return false;
     const expected = crypto
       .createHmac("sha256", this.config.webhookSecret)
       .update(rawBody)

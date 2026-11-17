@@ -19,7 +19,7 @@ const {
 const { hasCapacityForStay } = require("../services/inventoryService");
 const { validateBlockedExtraDates } = require("../utils/extraBlockedDates");
 const { withAdvisoryLock, INVENTORY_LOCK_KEY } = require("../utils/advisoryLock");
-const { triggerAriPushForStay } = require("../services/channexAriService");
+const { syncStay } = require("../services/channelSyncService");
 const { getActiveCalendarRows } = require("../utils/inventoryHolds");
 const { iterStayNights, toYmd } = require("../utils/weekdayPeakPricing");
 const {
@@ -35,10 +35,20 @@ const {
 const { applyVoucherToAmountDue } = require("../utils/voucherCredit");
 const { calculateBookingFees } = require("../utils/bookingFees");
 
+/** Re-push availability to whichever channel manager is on (Beds24 or Channex). */
 function scheduleChannexSync(checkIn, checkOut) {
-  triggerAriPushForStay(checkIn, checkOut).catch((err) => {
-    console.error("[Channex] Post-booking ARI sync failed:", err.message);
-  });
+  syncStay(checkIn, checkOut);
+}
+
+const OTA_CANCEL_MESSAGE =
+  "This booking came from an OTA. Cancel it on Booking.com or Expedia; the cancellation reaches Lufasi automatically and frees the dates.";
+
+/** An OTA-imported booking has a channel mapping row (Beds24 or Channex). */
+async function findChannelMapping(bookingId, transaction) {
+  return (
+    (await db.Beds24BookingMap.findOne({ where: { bookingId }, transaction })) ||
+    (await db.ChannexBookingMap.findOne({ where: { bookingId }, transaction }))
+  );
 }
 
 // Helper to generate booking reference
@@ -1281,6 +1291,19 @@ async function updateBooking(req, res, next) {
       return res.status(404).json({ error: "Booking not found" });
     }
 
+    // Cancelling here would not cancel the OTA reservation and could cause a double booking.
+    if (
+      bookingStatus === "cancelled" &&
+      existingBooking.bookingStatus !== "cancelled" &&
+      (await findChannelMapping(id))
+    ) {
+      return res.status(409).json({ error: OTA_CANCEL_MESSAGE, code: "OTA_BOOKING" });
+    }
+
+    // Remember the stay before it changes so both old and new dates are re-pushed.
+    const prevCheckIn = existingBooking.checkIn;
+    const prevCheckOut = existingBooking.checkOut;
+
     // Update booking data
     const updateData = {};
     if (dates?.checkIn) updateData.checkIn = dates.checkIn;
@@ -1449,6 +1472,13 @@ async function updateBooking(req, res, next) {
       action: "Updated booking",
       newStatus: bookingStatus || existingBooking.bookingStatus,
     });
+
+    // Dates or status can change how many domes are free: re-push old and new ranges.
+    if (dates?.checkIn || dates?.checkOut || bookingStatus) {
+      const syncFrom = [prevCheckIn, existingBooking.checkIn].filter(Boolean).sort()[0];
+      const syncTo = [prevCheckOut, existingBooking.checkOut].filter(Boolean).sort().pop();
+      if (syncFrom && syncTo) scheduleChannexSync(syncFrom, syncTo);
+    }
 
     // Return updated booking
     const updatedBooking = await db.Booking.findByPk(id, {
@@ -1739,6 +1769,13 @@ async function cancelBooking(req, res, next) {
     if (!booking) {
       await t.rollback();
       return res.status(404).json({ error: "Booking not found" });
+    }
+
+    // Cancelling an OTA booking here leaves the OTA reservation live. Staff can
+    // pass { "force": true } when it was already cancelled at the OTA.
+    if (req.body?.force !== true && (await findChannelMapping(id, t))) {
+      await t.rollback();
+      return res.status(409).json({ error: OTA_CANCEL_MESSAGE, code: "OTA_BOOKING" });
     }
 
     const oldStatus = booking.bookingStatus;

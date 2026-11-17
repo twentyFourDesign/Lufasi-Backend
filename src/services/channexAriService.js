@@ -252,9 +252,69 @@ async function triggerAriPushForStay(checkIn, checkOut) {
 
   const dateFrom = toYmd(nights[0]);
   const dateTo = toYmd(nights[nights.length - 1]);
-  const idempotencyKey = `ari-stay:${dateFrom}:${dateTo}:${Date.now()}`;
+  const push = () =>
+    triggerAriPush({
+      dateFrom,
+      dateTo,
+      idempotencyKey: `ari-stay:${dateFrom}:${dateTo}:${Date.now()}`,
+    });
 
-  return triggerAriPush({ dateFrom, dateTo, idempotencyKey });
+  try {
+    return await push();
+  } catch (err) {
+    console.error(
+      `[Channex] ARI push ${dateFrom}..${dateTo} failed, retrying shortly:`,
+      err.message,
+    );
+    retryAriPush(push, { dateFrom, dateTo }, err.message);
+    return { retrying: true, dateFrom, dateTo };
+  }
+}
+
+/** Seconds to wait before each background retry of a failed push. */
+const RETRY_DELAYS_MS = [20 * 1000, 90 * 1000];
+
+/**
+ * Retry a failed push in the background, then email the admin if it still
+ * fails. Dates stay open on the OTAs until a push succeeds, so staff must know.
+ */
+function retryAriPush(push, { dateFrom, dateTo }, firstError) {
+  let attempt = 0;
+  let lastError = firstError;
+
+  const next = () => {
+    if (attempt >= RETRY_DELAYS_MS.length) {
+      alertPushFailure({ dateFrom, dateTo }, lastError);
+      return;
+    }
+    const delay = RETRY_DELAYS_MS[attempt++];
+    const timer = setTimeout(async () => {
+      try {
+        await push();
+        console.log(`[Channex] ARI push ${dateFrom}..${dateTo} succeeded on retry`);
+      } catch (err) {
+        lastError = err.message;
+        next();
+      }
+    }, delay);
+    if (timer.unref) timer.unref();
+  };
+
+  next();
+}
+
+function alertPushFailure({ dateFrom, dateTo }, reason) {
+  const emailService = require("./emailService");
+  const emailConfig = require("../config/emailConfig");
+  console.error(`[Channex] ARI push ${dateFrom}..${dateTo} still failing: ${reason}`);
+  if (!emailConfig.isConfigured() || !emailConfig.adminEmail) return;
+  emailService
+    .sendEmail({
+      to: emailConfig.adminEmail,
+      subject: "Availability update to OTAs is failing",
+      html: `<p>Lufasi could not update availability for ${dateFrom} to ${dateTo} after several tries.</p><p>Reason: ${reason}</p><p>Until it succeeds, Booking.com and Expedia may still sell domes that are no longer free for these dates. The system keeps retrying every 10 minutes.</p>`,
+    })
+    .catch(() => {});
 }
 
 /**

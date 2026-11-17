@@ -15,8 +15,13 @@ const channexConfig = {
   /** Rolling window (days) for ARI pushes */
   ariWindowDays: Number(process.env.CHANNEX_ARI_WINDOW_DAYS) || 365,
 
-  /** Push net rates (ex-VAT) to OTAs — matches GA4 convention */
-  ratesExVat: process.env.CHANNEX_RATES_EX_VAT !== "false",
+  /**
+   * Lufasi's configured base prices are already pre-tax: checkout adds 12.5% VAT
+   * and 2.5% service charge on top. Push them unchanged and let each OTA apply
+   * the same taxes. Opt in to dividing by (1 + vatRate) only with
+   * CHANNEX_RATES_EX_VAT=true.
+   */
+  ratesExVat: process.env.CHANNEX_RATES_EX_VAT === "true",
   vatRate: Number(process.env.VAT_RATE) || 0.125,
 
   /** Minimum stay published to OTAs */

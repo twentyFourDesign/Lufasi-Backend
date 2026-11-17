@@ -5,7 +5,7 @@
 
 const db = require("../models");
 const { Op } = require("sequelize");
-const { triggerAriPushForStay } = require("./channexAriService");
+const { syncStay } = require("./channelSyncService");
 const { isBookingHoldingInventory } = require("../utils/inventoryHolds");
 
 class BookingExpirationService {
@@ -75,9 +75,7 @@ class BookingExpirationService {
 
         console.log(`Booking ${booking.bookingReference} expired`);
 
-        triggerAriPushForStay(booking.checkIn, booking.checkOut).catch((err) => {
-            console.error("[Channex] Post-expiry ARI sync failed:", err.message);
-        });
+        syncStay(booking.checkIn, booking.checkOut);
     }
 
     async checkAndExpireBooking(bookingId) {

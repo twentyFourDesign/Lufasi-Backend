@@ -86,11 +86,13 @@ async function handleWebhook(req, res, next) {
       req.headers["x-webhook-signature"] ||
       "";
 
-    const rawBody = JSON.stringify(req.body);
-    if (
-      channexConfig.webhookSecret &&
-      !channexService.verifyWebhookSignature(signature, rawBody)
-    ) {
+    if (!channexConfig.webhookSecret) {
+      return res.status(503).json({ error: "Webhook secret not configured" });
+    }
+
+    // Verify against the bytes Channex sent (captured in app.js), not a re-serialised copy.
+    const rawBody = req.rawBody || Buffer.from(JSON.stringify(req.body || {}));
+    if (!channexService.verifyWebhookSignature(signature, rawBody)) {
       return res.status(401).json({ error: "Invalid webhook signature" });
     }
 

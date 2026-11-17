@@ -7,6 +7,7 @@ const uploadService = require("../services/uploadService");
 const { getActivePeakRateForDates } = require("./configController");
 const { calculateStayRoomSubtotal } = require("../utils/weekdayPeakPricing");
 const { resolvePodAllocation } = require("../utils/guestAllocation");
+const { checkAssignable } = require("../utils/paymentReceived");
 const {
   normalizeFamilyGuests,
   hasUnder13Guests,
@@ -1589,6 +1590,18 @@ async function allocatePod(req, res, next) {
     if (!booking) {
       await t.rollback();
       return res.status(404).json({ error: "Booking not found" });
+    }
+
+    const assignable = await checkAssignable(booking, async (bookingId) =>
+      Boolean(
+        await db.BookingPayment.findOne({
+          where: { bookingId, paymentStatus: "successful" },
+        }),
+      ),
+    );
+    if (!assignable.ok) {
+      await t.rollback();
+      return res.status(409).json({ error: assignable.error });
     }
 
     if (podIds.length !== booking.podCount) {

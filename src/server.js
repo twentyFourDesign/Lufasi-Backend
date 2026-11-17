@@ -14,6 +14,7 @@ const { ensureStayTypeColumn } = require("./utils/ensureStayTypeColumn");
 const { ensureExtraBlockedDatesTable } = require("./utils/ensureExtraBlockedDatesTable");
 const { ensureChannexTables } = require("./utils/ensureChannexTables");
 const { ensureBeds24Tables } = require("./utils/ensureBeds24Tables");
+const { ensureSuperAdminRole } = require("./utils/ensureSuperAdminRole");
 const { startScheduler } = require("./jobs/scheduler");
 
 const PORT = process.env.PORT || 4000;
@@ -35,6 +36,7 @@ async function init() {
       await ensureExtraBlockedDatesTable(db.sequelize);
       await ensureChannexTables(db.sequelize);
       await ensureBeds24Tables(db.sequelize);
+      await ensureSuperAdminRole(db.sequelize);
     } catch (schemaErr) {
       console.error(
         "[init] Failed to ensure schema columns:",

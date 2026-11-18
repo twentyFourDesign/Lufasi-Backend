@@ -132,8 +132,11 @@ router.post("/admin-login-bg", adminAuth, uploaders.branding.single("image"), as
         const fs = require("fs");
         const path = require("path");
 
+        const sharp = require("sharp");
+
         const brandingDir = path.join(__dirname, "../../uploads/branding");
-        const targetPath = path.join(brandingDir, "admin-login-bg.png");
+        const targetPath = path.join(brandingDir, "admin-login-bg.webp");
+        const legacyPath = path.join(brandingDir, "admin-login-bg.png");
         const backupDir = path.join(brandingDir, "backup");
 
         if (!fs.existsSync(brandingDir)) {
@@ -143,18 +146,30 @@ router.post("/admin-login-bg", adminAuth, uploaders.branding.single("image"), as
             fs.mkdirSync(backupDir, { recursive: true });
         }
 
-        if (fs.existsSync(targetPath)) {
-            const timestamp = Date.now();
-            const backupPath = path.join(backupDir, `admin-login-bg-${timestamp}.png`);
-            fs.copyFileSync(targetPath, backupPath);
-            fs.unlinkSync(targetPath);
+        // Keep a backup of whatever is currently live (new webp, or the old png)
+        for (const [current, ext] of [[targetPath, "webp"], [legacyPath, "png"]]) {
+            if (fs.existsSync(current)) {
+                fs.copyFileSync(current, path.join(backupDir, `admin-login-bg-${Date.now()}.${ext}`));
+            }
         }
 
+        // Resize + compress: a full-screen background never needs more than ~1920px,
+        // and webp is a fraction of the size of the original png/jpg.
         const uploadedFilePath = path.join(brandingDir, req.file.filename);
-        fs.renameSync(uploadedFilePath, targetPath);
+        try {
+            await sharp(uploadedFilePath)
+                .rotate()
+                .resize({ width: 1920, withoutEnlargement: true })
+                .webp({ quality: 80 })
+                .toFile(targetPath);
+        } finally {
+            fs.unlink(uploadedFilePath, () => {});
+        }
+        // Remove the old png so the page always serves the optimised file
+        if (fs.existsSync(legacyPath)) fs.unlinkSync(legacyPath);
 
         const baseUrl = uploadService.getAppBaseUrl();
-        const imagePath = "/uploads/branding/admin-login-bg.png";
+        const imagePath = "/uploads/branding/admin-login-bg.webp";
         res.json({
             success: true,
             message: "Admin login background updated successfully",

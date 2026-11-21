@@ -42,6 +42,24 @@ const beds24Config = {
    */
   availMode: process.env.BEDS24_AVAIL_MODE || "absolute",
 
+  /**
+   * OTA tax gross-up. Direct bookings pay base x (1 + directTaxPercent/100). If an OTA
+   * extranet cannot be set to the same total tax (e.g. Booking.com locks VAT at 5%),
+   * the price pushed to Beds24 is raised by (1+direct)/(1+ota) so the guest still pays
+   * the same total as on the website. Both default to 0 => factor 1 => no change.
+   *   BEDS24_DIRECT_TAX_PERCENT  e.g. 15   (12.5% VAT + 2.5% service charge)
+   *   BEDS24_OTA_TAX_PERCENT     e.g. 7.5  (what the OTA extranet will add: 5% VAT + 2.5% SC)
+   */
+  directTaxPercent: Number(process.env.BEDS24_DIRECT_TAX_PERCENT) || 0,
+  otaTaxPercent: Number(process.env.BEDS24_OTA_TAX_PERCENT) || 0,
+
+  getOtaPriceFactor() {
+    const d = Number(this.directTaxPercent) || 0;
+    const o = Number(this.otaTaxPercent) || 0;
+    if (d <= 0 || o <= 0) return 1;
+    return (1 + d / 100) / (1 + o / 100);
+  },
+
   enabled: process.env.BEDS24_ENABLED === "true",
 
   isConfigured() {
@@ -60,6 +78,9 @@ const beds24Config = {
       ariWindowDays: this.ariWindowDays,
       minStay: this.minStay,
       availMode: this.availMode,
+      otaPriceFactor: Number(this.getOtaPriceFactor().toFixed(5)),
+      directTaxPercent: this.directTaxPercent,
+      otaTaxPercent: this.otaTaxPercent,
       webhookSecretSet: Boolean(this.webhookSecret),
     };
   },

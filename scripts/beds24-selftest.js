@@ -334,6 +334,27 @@ function beds24Raw(over = {}) {
     assert.equal(rates["2026-12-06"].price2, 400000);
   });
 
+  await test("OTA tax gross-up: guest total matches direct when OTA taxes are lower", async () => {
+    beds24Config.directTaxPercent = 15; // 12.5% VAT + 2.5% service charge
+    beds24Config.otaTaxPercent = 7.5; // 5% VAT + 2.5% service charge
+    try {
+      const rates = await ari.computeRatesMap("2026-12-04", "2026-12-07");
+      assert.equal(rates["2026-12-06"].price1, 320930); // 300000 x 1.15 / 1.075
+      assert.equal(rates["2026-12-06"].price2, 427907); // 400000 x 1.15 / 1.075
+      assert.equal(rates["2026-12-04"].price1, 427907); // 400000 peak
+      assert.ok(Math.abs(rates["2026-12-06"].price1 * 1.075 - 345000) < 1);
+      beds24Config.otaTaxPercent = 5; // service charge not possible: 5% only
+      const r2 = await ari.computeRatesMap("2026-12-06", "2026-12-06");
+      assert.equal(r2["2026-12-06"].price1, 328571);
+      beds24Config.otaTaxPercent = 0; // unset => no change
+      const r3 = await ari.computeRatesMap("2026-12-06", "2026-12-06");
+      assert.equal(r3["2026-12-06"].price1, 300000);
+    } finally {
+      beds24Config.directTaxPercent = 0;
+      beds24Config.otaTaxPercent = 0;
+    }
+  });
+
   await test("merges consecutive identical nights into one calendar entry", async () => {
     const avail = { "2026-12-01": 6, "2026-12-02": 6, "2026-12-03": 5, "2026-12-04": 5 };
     const rates = {};

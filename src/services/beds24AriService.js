@@ -99,7 +99,9 @@ async function computeAvailabilityMap(dateFrom, dateTo) {
 
 /**
  * Nightly prices for 1 and 2 adults: the pre-tax base price with seasonal
- * adjustment. OTA extranets add 12.5% VAT + 2.5% service charge.
+ * adjustment. OTA extranets add their own taxes on top. When an OTA cannot be set to the
+ * same total tax as direct bookings, the price is grossed up (beds24Config.getOtaPriceFactor)
+ * so the guest-paid total still matches the website. Rounded to whole naira.
  */
 async function computeRatesMap(dateFrom, dateTo) {
   const config = await getPricingConfigOrDefault();
@@ -118,9 +120,12 @@ async function computeRatesMap(dateFrom, dateTo) {
     const { basePerPod, extraGuestFee } = getNightRatesFromConfig(config, isPeak);
     const multiplier = 1 + getSeasonalPercentForDate(key, seasonal) / 100;
 
+    const factor = beds24Config.getOtaPriceFactor();
+    const adj = (v) => (factor === 1 ? Math.round(v * 100) / 100 : Math.round(v * factor));
+
     map[key] = {
-      price1: Math.round(basePerPod * multiplier * 100) / 100,
-      price2: Math.round((basePerPod + extraGuestFee) * multiplier * 100) / 100,
+      price1: adj(basePerPod * multiplier),
+      price2: adj((basePerPod + extraGuestFee) * multiplier),
       isPeak,
     };
   }
